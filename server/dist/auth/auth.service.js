@@ -20,31 +20,38 @@ const user_entity_1 = require("../users/user.entity");
 let AuthService = class AuthService {
     constructor(userRepo) {
         this.userRepo = userRepo;
-        this.loggedInUsers = new Map(); // Tracks logged-in status
+        this.loggedInUsers = new Map();
     }
     async signup(data) {
-        const exists = await this.userRepo.findOne({ where: { email: data.email } });
+        const exists = await this.userRepo.findOne({
+            where: { email: data.email },
+        });
         if (exists)
-            throw new common_1.BadRequestException('User already exists');
-        const user = this.userRepo.create({ ...data, role: 'user' });
+            throw new common_1.BadRequestException("User already exists");
+        const user = this.userRepo.create({ ...data, role: "user" });
         await this.userRepo.save(user);
-        return { message: 'Signup successful' };
+        return { message: "Signup successful" };
     }
-    async login(data) {
-        const user = await this.userRepo.findOne({ where: { email: data.email } });
-        if (!user || user.password !== data.password) {
-            throw new common_1.UnauthorizedException('Invalid credentials');
+    async login(dto) {
+        const user = await this.userRepo.findOne({
+            where: { email: dto.email },
+        });
+        if (!user || user.password !== dto.password) {
+            throw new common_1.BadRequestException("Invalid credentials");
         }
-        this.loggedInUsers.set(data.email, true);
-        return { message: `${user.role} login successful` };
+        this.loggedInUsers.set(user.email, true); // ✅ FIXED: use .set instead of .add
+        return {
+            message: "Login successful",
+            role: user.role,
+        };
     }
     logout(email) {
         if (this.loggedInUsers.get(email)) {
             this.loggedInUsers.delete(email);
-            return { message: 'Logout successful' };
+            return { message: "Logout successful" };
         }
         else {
-            throw new common_1.BadRequestException('User not logged in');
+            throw new common_1.BadRequestException("User not logged in");
         }
     }
     isLoggedIn(email) {

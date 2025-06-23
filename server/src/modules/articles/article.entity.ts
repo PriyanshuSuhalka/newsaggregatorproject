@@ -5,7 +5,10 @@ import { ExternalAPI } from '@modules/externalapi/external-api.entity';
 @Entity()
 export class Article {
   @PrimaryGeneratedColumn() articleID!: number;
+
+  @Column() articleTitle!: string; 
   @Column() articleContent!: string;
+
   @Column() source!: string;
   @Column() URL!: string;
   @Column() publishDate!: Date;

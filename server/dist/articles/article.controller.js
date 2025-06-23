@@ -21,20 +21,20 @@ let ArticleController = class ArticleController {
     constructor(articleService) {
         this.articleService = articleService;
     }
-    findAll() {
-        return this.articleService.findAll();
-    }
     create(dto) {
         return this.articleService.create(dto);
     }
+    async getArticles(start, end, category) {
+        return this.articleService.getArticles(start, end, category);
+    }
+    async searchArticles(keyword) {
+        if (!keyword) {
+            throw new common_1.BadRequestException('Keyword is required');
+        }
+        return this.articleService.searchByKeyword(keyword);
+    }
 };
 exports.ArticleController = ArticleController;
-__decorate([
-    (0, common_1.Get)(),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], ArticleController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
@@ -42,6 +42,22 @@ __decorate([
     __metadata("design:paramtypes", [create_article_dto_1.CreateArticleDto]),
     __metadata("design:returntype", void 0)
 ], ArticleController.prototype, "create", null);
+__decorate([
+    (0, common_1.Get)(),
+    __param(0, (0, common_1.Query)('start')),
+    __param(1, (0, common_1.Query)('end')),
+    __param(2, (0, common_1.Query)('category')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], ArticleController.prototype, "getArticles", null);
+__decorate([
+    (0, common_1.Get)('search'),
+    __param(0, (0, common_1.Query)('keyword')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], ArticleController.prototype, "searchArticles", null);
 exports.ArticleController = ArticleController = __decorate([
     (0, swagger_1.ApiTags)('Articles'),
     (0, common_1.Controller)('articles'),
