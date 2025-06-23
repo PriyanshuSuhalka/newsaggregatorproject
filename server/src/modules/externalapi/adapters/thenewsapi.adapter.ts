@@ -4,43 +4,46 @@ import { Category } from '@modules/categories/category.entity';
 import { ExternalAPI } from '@modules/externalapi/external-api.entity';
 import { NormalizedArticle } from '../interfaces/news-provider.interface';
 
-export class NewsApiAdapter {
+export class TheNewsApiAdapter {
   constructor(private readonly dataSource: DataSource) {}
 
   async fetchArticles(): Promise<NormalizedArticle[]> {
-    // Fetch the API key dynamically from the database
+    // Get API key for TheNewsAPI from the database
     const externalApiRepo = this.dataSource.getRepository(ExternalAPI);
-    const newsApi = await externalApiRepo.findOne({
-      where: { name: 'newsapi' },
+    const config = await externalApiRepo.findOne({
+      where: { name: 'thenewsapi' },
     });
 
-    if (!newsApi) {
-      throw new Error('NewsAPI config not found in ExternalAPI table');
+    if (!config) {
+      throw new Error('TheNewsAPI config not found in ExternalAPI table');
     }
 
-    const apiKey = newsApi.key;
+    const apiKey = config.key;
 
-    const res = await axios.get(
-      `https://newsapi.org/v2/top-headlines?country=us&apiKey=${apiKey}`
-    );
+    const res = await axios.get('https://api.thenewsapi.com/v1/news/all', {
+      params: {
+        language: 'en',
+        api_token: apiKey,
+      },
+    });
 
     // Fetch categories from DB
     const categoryRepo = this.dataSource.getRepository(Category);
     const categories = await categoryRepo.find();
     const categoryNames = categories.map((c) => c.categoryName.toLowerCase());
 
-    return res.data.articles.map((article: any) => {
+    return res.data.data.map((article: any) => {
       const combinedText = `${article.title} ${article.content || ''}`.toLowerCase();
       const matchedCategory =
         categoryNames.find((cat) => combinedText.includes(cat)) || 'Unknown';
 
       return {
-        title: article.title || '',
-        content: article.content || '',
-        url: article.url || '',
-        source: article.source?.name || '',
+        title: article.title || "",
+        content: article.content || "",
+        url: article.url || "",
+        source: article.source || "",
         category: matchedCategory,
-        publishedAt: article.publishedAt ? new Date(article.publishedAt) : new Date(),
+        publishedAt: article.published ? new Date(article.published) : new Date(),
       };
     });
   }

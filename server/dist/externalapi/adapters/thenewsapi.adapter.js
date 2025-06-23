@@ -3,41 +3,46 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.NewsApiAdapter = void 0;
+exports.TheNewsApiAdapter = void 0;
 const axios_1 = __importDefault(require("axios"));
 const category_entity_1 = require("../../categories/category.entity");
 const external_api_entity_1 = require("../external-api.entity");
-class NewsApiAdapter {
+class TheNewsApiAdapter {
     constructor(dataSource) {
         this.dataSource = dataSource;
     }
     async fetchArticles() {
-        // Fetch the API key dynamically from the database
+        // Get API key for TheNewsAPI from the database
         const externalApiRepo = this.dataSource.getRepository(external_api_entity_1.ExternalAPI);
-        const newsApi = await externalApiRepo.findOne({
-            where: { name: 'newsapi' },
+        const config = await externalApiRepo.findOne({
+            where: { name: 'thenewsapi' },
         });
-        if (!newsApi) {
-            throw new Error('NewsAPI config not found in ExternalAPI table');
+        if (!config) {
+            throw new Error('TheNewsAPI config not found in ExternalAPI table');
         }
-        const apiKey = newsApi.key;
-        const res = await axios_1.default.get(`https://newsapi.org/v2/top-headlines?country=us&apiKey=${apiKey}`);
+        const apiKey = config.key;
+        const res = await axios_1.default.get('https://api.thenewsapi.com/v1/news/all', {
+            params: {
+                language: 'en',
+                api_token: apiKey,
+            },
+        });
         // Fetch categories from DB
         const categoryRepo = this.dataSource.getRepository(category_entity_1.Category);
         const categories = await categoryRepo.find();
         const categoryNames = categories.map((c) => c.categoryName.toLowerCase());
-        return res.data.articles.map((article) => {
+        return res.data.data.map((article) => {
             const combinedText = `${article.title} ${article.content || ''}`.toLowerCase();
             const matchedCategory = categoryNames.find((cat) => combinedText.includes(cat)) || 'Unknown';
             return {
-                title: article.title || '',
-                content: article.content || '',
-                url: article.url || '',
-                source: article.source?.name || '',
+                title: article.title || "",
+                content: article.content || "",
+                url: article.url || "",
+                source: article.source || "",
                 category: matchedCategory,
-                publishedAt: article.publishedAt ? new Date(article.publishedAt) : new Date(),
+                publishedAt: article.published ? new Date(article.published) : new Date(),
             };
         });
     }
 }
-exports.NewsApiAdapter = NewsApiAdapter;
+exports.TheNewsApiAdapter = TheNewsApiAdapter;

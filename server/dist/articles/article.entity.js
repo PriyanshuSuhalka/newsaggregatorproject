@@ -8,7 +8,6 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Article = void 0;
 const typeorm_1 = require("typeorm");
@@ -21,6 +20,10 @@ __decorate([
     (0, typeorm_1.PrimaryGeneratedColumn)(),
     __metadata("design:type", Number)
 ], Article.prototype, "articleID", void 0);
+__decorate([
+    (0, typeorm_1.Column)(),
+    __metadata("design:type", String)
+], Article.prototype, "articleTitle", void 0);
 __decorate([
     (0, typeorm_1.Column)(),
     __metadata("design:type", String)
@@ -43,7 +46,7 @@ __decorate([
 ], Article.prototype, "category", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => external_api_entity_1.ExternalAPI, { eager: true }),
-    __metadata("design:type", typeof (_a = typeof external_api_entity_1.ExternalAPI !== "undefined" && external_api_entity_1.ExternalAPI) === "function" ? _a : Object)
+    __metadata("design:type", external_api_entity_1.ExternalAPI)
 ], Article.prototype, "externalAPI", void 0);
 exports.Article = Article = __decorate([
     (0, typeorm_1.Entity)()

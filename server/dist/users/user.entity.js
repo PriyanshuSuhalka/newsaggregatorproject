@@ -33,15 +33,15 @@ __decorate([
     __metadata("design:type", String)
 ], User.prototype, "name", void 0);
 __decorate([
-    (0, typeorm_1.Column)(),
+    (0, typeorm_1.Column)({ unique: true }),
     __metadata("design:type", String)
 ], User.prototype, "email", void 0);
 __decorate([
-    (0, typeorm_1.OneToMany)(() => saved_article_entity_1.SavedArticle, sa => sa.user),
+    (0, typeorm_1.OneToMany)(() => saved_article_entity_1.SavedArticle, (sa) => sa.user, { cascade: true }),
     __metadata("design:type", Array)
 ], User.prototype, "savedArticles", void 0);
 __decorate([
-    (0, typeorm_1.OneToMany)(() => notification_entity_1.Notification, n => n.user),
+    (0, typeorm_1.OneToMany)(() => notification_entity_1.Notification, (n) => n.user, { cascade: true }),
     __metadata("design:type", Array)
 ], User.prototype, "notifications", void 0);
 exports.User = User = __decorate([
