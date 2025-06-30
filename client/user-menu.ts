@@ -3,6 +3,7 @@ import inquirer from "inquirer";
 import dayjs from "dayjs";
 
 const BASE_URL = "http://localhost:8000";
+let userData: { userEmail: string; userID: number };
 
 export async function showUserMenu(userEmail: string) {
   while (true) {
@@ -30,11 +31,11 @@ export async function showUserMenu(userEmail: string) {
         await showHeadlinesSubMenu(userEmail);
         break;
       case "2":
-        const userData = await fetchUserInfo(userEmail);
-        fetchSavedArticles(userData.userEmail, userData.userID);
+        userData = await fetchUserInfo(userEmail);
+        fetchSavedArticles(userEmail, userData.userID);
         break;
       case "3":
-        await handleSearch();
+        await handleSearch(userEmail);
         break;
       case "5":
         console.log("Logged out.");
@@ -45,7 +46,7 @@ export async function showUserMenu(userEmail: string) {
   }
 }
 
-async function handleSearch() {
+async function handleSearch(userEmail: string) {
   const { keyword } = await inquirer.prompt({
     type: 'input',
     name: 'keyword',
@@ -72,6 +73,46 @@ async function handleSearch() {
       console.log(`   Source: ${a.source}`);
       console.log(`   URL: ${a.URL}\n`);
     });
+
+    console.log("1. Save an Article\n2. Back\n3. Logout");
+    const { action } = await inquirer.prompt({
+      type: "input",
+      name: "action",
+      message: "Enter your choice:",
+      validate: (val) => ["1", "2", "3"].includes(val) || "Enter 1, 2 or 3",
+    });
+
+    if (action === "1") {
+      const { articleIndex } = await inquirer.prompt({
+        type: "input",
+        name: "articleIndex",
+        message: `Enter article number to save (1-${articles.length}):`,
+        validate: (val) =>
+          /^\d+$/.test(val) &&
+          parseInt(val) >= 1 &&
+          parseInt(val) <= articles.length ||
+          `Enter a number between 1 and ${articles.length}`,
+      });
+
+      const selectedArticle = articles[parseInt(articleIndex) - 1];
+      try {
+        await axios.post(`${BASE_URL}/saved-articles`, {
+          email: userEmail,
+          articleID: selectedArticle.articleID,
+        });
+        console.log("✅ Article saved.");
+      } catch (err: any) {
+        console.error("Save failed:", err.response?.data?.message || err.message);
+      }
+
+      // 🔁 Return to action menu only, not full keyword prompt again
+      return;
+    } else if (action === "2") {
+      return;
+    } else {
+      console.log("Logging out...");
+      process.exit(0);
+    }
   } catch (error: any) {
     console.error('Search failed:', error.response?.data?.message || error.message);
   }
@@ -116,7 +157,7 @@ async function showHeadlinesSubMenu(userEmail: string) {
         await fetchHeadlinesToday(userEmail);
         break;
       case "2":
-        await fetchHeadlinesByDateRange();
+        await fetchHeadlinesByDateRange(userEmail);
         break;
       case "3":
         console.log("Logged out.");
@@ -157,7 +198,7 @@ async function fetchHeadlinesToday(userEmail: string) {
   }
 }
 
-async function fetchHeadlinesByDateRange() {
+async function fetchHeadlinesByDateRange(userEmail: string) {
   const { start, end } = await inquirer.prompt([
     {
       type: 'input',
@@ -175,8 +216,7 @@ async function fetchHeadlinesByDateRange() {
     },
   ]);
 
-  // Show numeric menu manually
-  console.log('\nPlease choose the options below for Headlines');
+  console.log('\nPlease choose the category below');
   console.log('1. All');
   console.log('2. Business');
   console.log('3. Entertainment');
@@ -202,41 +242,71 @@ async function fetchHeadlinesByDateRange() {
   const selectedCategory = categoryMap[categoryChoice];
 
   try {
-    const queryParams: any = {
-      start,
-      end,
-    };
+    const queryParams: any = { start, end };
+    if (selectedCategory !== 'All') queryParams.category = selectedCategory;
 
-    if (selectedCategory !== 'All') {
-      queryParams.category = selectedCategory;
+    const res = await axios.get(`${BASE_URL}/articles`, { params: queryParams });
+    const articles = res.data;
+
+    if (!articles.length) {
+      console.log(`\nNo headlines found between ${start} and ${end}.\n`);
+      return;
     }
 
-    const res = await axios.get(`${BASE_URL}/articles`, {
-      params: queryParams,
+    console.log(`\n--- Headlines from ${start} to ${end} (Category: ${selectedCategory}) ---`);
+    articles.forEach((a: any, index: number) => {
+      console.log(`${index + 1}. ${a.articleTitle}`);
+      console.log(`   Content: ${a.articleContent}`);
+      console.log(`   Source: ${a.source}`);
+      console.log(`   URL: ${a.URL}`);
+      console.log(`   Category: ${a.category?.categoryName || 'Unknown'}\n`);
     });
 
-    const articles = res.data;
-    if (articles.length === 0) {
-      console.log(`\nNo headlines found between ${start} and ${end}.\n`);
-    } else {
-      console.log(
-        `\n--- Headlines from ${start} to ${end} (Category: ${selectedCategory}) ---`
-      );
-      articles.forEach((a: any, index: number) => {
-        console.log(`${index + 1}. ${a.articleTitle}`);
-        console.log(`   Content: ${a.articleContent}`);
-        console.log(`   Source: ${a.source}`);
-        console.log(`   URL: ${a.URL}`);
-        console.log(`   Category: ${a.category?.categoryName || 'Unknown'}\n`);
+    console.log("1. Save an Article\n2. Back\n3. Logout");
+    const { action } = await inquirer.prompt({
+      type: "input",
+      name: "action",
+      message: "Enter your choice:",
+      validate: (val) =>
+        ["1", "2", "3"].includes(val) || "Enter a valid number (1-3)",
+    });
+
+    if (action === "1") {
+      const { articleIndex } = await inquirer.prompt({
+        type: "input",
+        name: "articleIndex",
+        message: `Enter article number to save (1-${articles.length}):`,
+        validate: (val) =>
+          /^\d+$/.test(val) &&
+          parseInt(val) >= 1 &&
+          parseInt(val) <= articles.length ||
+          `Enter a number between 1 and ${articles.length}`,
       });
+
+      const selectedArticle = articles[parseInt(articleIndex) - 1];
+      try {
+        await axios.post(`${BASE_URL}/saved-articles`, {
+          email: userEmail,
+          articleID: selectedArticle.articleID,
+        });
+        console.log("✅ Article saved.");
+      } catch (err: any) {
+        console.error("Save failed:", err.response?.data?.message || err.message);
+      }
+
+      // 🔁 Go back to the action menu, not date prompts
+      return;
+    } else if (action === "2") {
+      return;
+    } else {
+      console.log("Logging out...");
+      process.exit(0);
     }
   } catch (err: any) {
-    console.error(
-      'Error fetching headlines:',
-      err.response?.data?.message || err.message
-    );
+    console.error('Error fetching headlines:', err.response?.data?.message || err.message);
   }
 }
+
 
 async function postHeadlinesMenu(userEmail: string) {
   const { choice } = await inquirer.prompt({
