@@ -7,7 +7,7 @@ import { ExternalApiService } from './externalapi.service';
 export class ExternalApiCron {
   constructor(private readonly externalApiService: ExternalApiService) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_3_HOURS)
   handleCron() {
     console.log('[CRON] Fetching articles from external APIs...');
     this.externalApiService.fetchAndSaveArticles().catch((err) => {
