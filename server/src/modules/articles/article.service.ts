@@ -36,6 +36,7 @@ export class ArticleService {
     if (!api) throw new Error("External API not found");
 
     const article = new Article();
+    article.articleTitle = dto.articleTitle;
     article.articleContent = dto.articleContent;
     article.source = dto.source;
     article.URL = dto.URL;

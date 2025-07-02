@@ -6,6 +6,7 @@ import { Category } from '@modules/categories/category.entity';
 import { NewsApiAdapter } from './adapters/newsapi.adapter';
 import { TheNewsApiAdapter } from './adapters/thenewsapi.adapter';
 import { ExternalAPI } from './external-api.entity';
+import { QueryFailedError } from 'typeorm';
 
 @Injectable()
 export class ExternalApiService {
@@ -64,16 +65,27 @@ export class ExternalApiService {
           externalAPI,
         });
 
-        await this.articleRepo.save(article);
-        this.logger.log(`Article saved from ${apiName}: ${a.title}`);
+        try {
+          await this.articleRepo.save(article);
+          this.logger.log(`✅ Article saved from ${apiName}: ${a.title}`);
+        } catch (error: any) {
+          if (
+            error instanceof QueryFailedError &&
+            error.driverError?.code === 'ER_DUP_ENTRY'
+          ) {
+            this.logger.warn(`⏩ Duplicate URL skipped: ${a.url}`);
+          } else {
+            this.logger.error(`❌ Failed to save article from ${apiName}: ${a.title}`);
+            this.logger.error(error.message || error);
+          }
+        }
       }
 
       externalAPI.APIStatus = 1;
       externalAPI.lastAccessed = new Date();
       await this.externalRepo.save(externalAPI);
     } catch (error: any) {
-      this.logger.error(`Failed to fetch from ${apiName}: ${error.message}`);
-
+      this.logger.error(`❌ Failed to fetch from ${apiName}: ${error.message}`);
       externalAPI.APIStatus = 0;
       externalAPI.lastAccessed = new Date();
       await this.externalRepo.save(externalAPI);
