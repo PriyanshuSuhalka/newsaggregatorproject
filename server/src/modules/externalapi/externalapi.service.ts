@@ -7,6 +7,7 @@ import { NewsApiAdapter } from './adapters/newsapi.adapter';
 import { TheNewsApiAdapter } from './adapters/thenewsapi.adapter';
 import { ExternalAPI } from './external-api.entity';
 import { QueryFailedError } from 'typeorm';
+import { NotificationService } from '@modules/notifications/notification.service';
 
 @Injectable()
 export class ExternalApiService {
@@ -19,7 +20,8 @@ export class ExternalApiService {
     private categoryRepo: Repository<Category>,
     @InjectRepository(ExternalAPI)
     private externalRepo: Repository<ExternalAPI>,
-    private dataSource: DataSource
+    private dataSource: DataSource,
+    private notificationService: NotificationService
   ) {}
 
   async fetchAndSaveArticles(): Promise<void> {
@@ -78,6 +80,15 @@ export class ExternalApiService {
             this.logger.error(`❌ Failed to save article from ${apiName}: ${a.title}`);
             this.logger.error(error.message || error);
           }
+        }
+
+        try {
+        await this.articleRepo.save(article);
+          this.logger.log(`✅ Article saved from ${apiName}: ${a.title}`);
+
+          // Notify users who subscribed to this category
+          await this.notificationService.notifyUsersForArticle(article);
+        } catch (error: any) {
         }
       }
 
