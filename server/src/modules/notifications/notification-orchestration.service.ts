@@ -208,6 +208,12 @@ export class NotificationOrchestrationService {
    */
   private async sendEmailNotification(user: User, article: Article): Promise<boolean> {
     try {
+      // Validate email address
+      if (!user.email || !this.isValidEmail(user.email)) {
+        this.logger.warn(`📧 Invalid email address for user ${user.email || 'unknown'}: skipping email`);
+        return false;
+      }
+
       await this.mailHelper.sendArticleNotification(user, article);
       this.logger.log(`📧 Email sent to ${user.email}`);
       return true;
@@ -219,11 +225,38 @@ export class NotificationOrchestrationService {
   }
 
   /**
+   * Simple email validation
+   */
+  private isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
+  /**
    * Create notification message based on match result
+   * Keep message concise and user-friendly without technical details
    */
   private createNotificationMessage(article: Article, matchResult: MatchResult): string {
-    const scorePercentage = Math.min(100, Math.round(matchResult.score));
-    return `📰 New article (${scorePercentage}% match): ${article.articleTitle} - ${matchResult.reasons.join(', ')}`;
+    // Truncate long titles to fit database constraints
+    const maxTitleLength = 80;
+    const truncatedTitle = article.articleTitle.length > maxTitleLength 
+      ? article.articleTitle.substring(0, maxTitleLength) + '...'
+      : article.articleTitle;
+
+    // Create a user-friendly message without match percentages or technical details
+    const categoryMatches = matchResult.matchedCategories;
+    const keywordMatches = matchResult.matchedKeywords;
+
+    let reason = '';
+    if (categoryMatches.length > 0 && keywordMatches.length > 0) {
+      reason = `(category & keyword match)`;
+    } else if (categoryMatches.length > 0) {
+      reason = `(category match)`;
+    } else if (keywordMatches.length > 0) {
+      reason = `(keyword match)`;
+    }
+
+    return `📰 ${truncatedTitle} ${reason}`.trim();
   }
 
   /**

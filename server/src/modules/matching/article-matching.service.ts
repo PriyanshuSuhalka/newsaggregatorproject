@@ -129,20 +129,74 @@ export class ArticleMatchingService {
     const titleLower = article.articleTitle.toLowerCase();
     const contentLower = article.articleContent.toLowerCase();
 
-    for (const categoryId of config.enabledCategoryIds) {
-      // Check against known category synonyms
-      for (const [categoryKey, synonyms] of Object.entries(this.categorySynonyms)) {
-        const categoryScore = this.checkTextForTerms(titleLower, contentLower, synonyms);
-        if (categoryScore > 0) {
-          result.matched = true;
-          result.score += categoryScore;
-          result.reasons.push(`Category synonym match for ${categoryKey}`);
-          result.matchedCategories.push(categoryKey);
-        }
-      }
+    // We need to map category IDs to category names first
+    // For now, we'll need to get the category information from the database
+    // This is a simplified approach - in production, we'd want to pass category info
+    
+    // Check against synonyms only for categories the user has enabled
+    // Since we don't have a direct ID->name mapping, we'll be more conservative
+    // and only match exact category names or very specific synonyms
+    
+    // Only check if the article category itself matches enabled categories
+    // through more conservative synonym matching
+    if (this.isConservativeCategoryMatch(articleCategoryName, config.enabledCategoryIds)) {
+      result.matched = true;
+      result.score += 20; // Lower score for synonym match
+      result.reasons.push(`Category synonym match for ${articleCategoryName}`);
+      result.matchedCategories.push(articleCategoryName);
     }
 
     return result;
+  }
+
+  /**
+   * Conservative category matching that only matches very specific synonyms
+   */
+  private isConservativeCategoryMatch(articleCategoryName: string, enabledCategoryIds: number[]): boolean {
+    // Map of known category IDs to names (this should come from database in real implementation)
+    const categoryIdToName: { [key: number]: string } = {
+      1: 'entertainment',
+      2: 'business', 
+      3: 'sports',
+      4: 'technology',
+      6: 'unknown',
+      7: 'finance',
+      8: 'stock',
+      9: 'israel',
+      10: 'america',
+      12: 'india',
+      15: 'tech'
+    };
+
+    // Check if article category directly matches any enabled category
+    for (const categoryId of enabledCategoryIds) {
+      const enabledCategoryName = categoryIdToName[categoryId];
+      if (!enabledCategoryName) continue;
+
+      // Direct name match
+      if (articleCategoryName === enabledCategoryName) {
+        return true;
+      }
+
+      // Check specific synonyms only for this enabled category
+      const synonyms = this.categorySynonyms[enabledCategoryName];
+      if (synonyms && synonyms.includes(articleCategoryName)) {
+        return true;
+      }
+
+      // Special cases for very close matches
+      if ((enabledCategoryName === 'technology' || enabledCategoryName === 'tech') && 
+          (articleCategoryName === 'tech' || articleCategoryName === 'technology')) {
+        return true;
+      }
+      
+      if ((enabledCategoryName === 'business' || enabledCategoryName === 'finance') && 
+          (articleCategoryName === 'finance' || articleCategoryName === 'business' || articleCategoryName === 'stock')) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**

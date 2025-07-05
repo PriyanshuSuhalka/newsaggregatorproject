@@ -9,7 +9,7 @@ export class ExternalApiCron {
 
   constructor(private readonly externalApiService: ExternalApiService) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_10_MINUTES)
   async handleCron() {
     const startTime = new Date();
     this.logger.log(`🔄 [CRON] Starting article fetch and notification cycle...`);
