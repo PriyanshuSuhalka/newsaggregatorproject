@@ -4,9 +4,11 @@ import { Repository } from 'typeorm';
 import { Notification } from './notification.entity';
 import { NotificationConfiguration } from '@modules/notificationconfig/notification-config.entity';
 import { User } from '@modules/users/user.entity';
+import { Article } from '@modules/articles/article.entity';
 import { Category } from '@modules/categories/category.entity';
 import { UpdateNotificationConfigDto } from './dto/update-notification-config.dto';
 import { SendNotificationDto } from './dto/send-notification.dto';
+import { ArticleMatchingService } from '@modules/matching/article-matching.service';
 
 /**
  * Service responsible for notification CRUD operations and configuration management.
@@ -28,6 +30,11 @@ export class NotificationService {
 
     @InjectRepository(Category)
     private categoryRepo: Repository<Category>,
+
+    @InjectRepository(Article)
+    private articleRepo: Repository<Article>,
+
+    private readonly articleMatchingService: ArticleMatchingService
   ) {}
 
   /**
@@ -47,7 +54,7 @@ export class NotificationService {
   }
 
   /**
-   * Get notification configuration for a user (creates default if none exists)
+   * Get notification configuration for a user
    */
   async getNotificationConfig(userId: number): Promise<NotificationConfiguration | null> {
     const user = await this.userRepo.findOne({ where: { userID: userId } });
@@ -60,15 +67,14 @@ export class NotificationService {
       relations: ['user']
     });
 
+    // Create default config if none exists
     if (!config) {
-      // Create default configuration
       config = this.configRepo.create({
         user,
         enabledCategoryIds: [],
         keywords: [],
         emailNotificationsEnabled: true
       });
-      
       config = await this.configRepo.save(config);
     }
 
@@ -89,8 +95,14 @@ export class NotificationService {
       relations: ['user']
     });
 
-    if (config) {
-      // Update existing configuration
+    if (!config) {
+      config = this.configRepo.create({
+        user,
+        enabledCategoryIds: updateDto.enabledCategoryIds || [],
+        keywords: updateDto.keywords || [],
+        emailNotificationsEnabled: updateDto.emailNotificationsEnabled ?? true
+      });
+    } else {
       if (updateDto.enabledCategoryIds !== undefined) {
         config.enabledCategoryIds = updateDto.enabledCategoryIds;
       }
@@ -100,21 +112,13 @@ export class NotificationService {
       if (updateDto.emailNotificationsEnabled !== undefined) {
         config.emailNotificationsEnabled = updateDto.emailNotificationsEnabled;
       }
-    } else {
-      // Create new configuration
-      config = this.configRepo.create({
-        user,
-        enabledCategoryIds: updateDto.enabledCategoryIds || [],
-        keywords: updateDto.keywords || [],
-        emailNotificationsEnabled: updateDto.emailNotificationsEnabled !== undefined ? updateDto.emailNotificationsEnabled : true
-      });
     }
 
     return this.configRepo.save(config);
   }
 
   /**
-   * Send a notification to a user
+   * Send a notification manually
    */
   async sendNotification(sendDto: SendNotificationDto): Promise<Notification> {
     const user = await this.userRepo.findOne({ where: { userID: sendDto.userId } });
@@ -132,7 +136,7 @@ export class NotificationService {
   }
 
   /**
-   * Mark a notification as read
+   * Mark notification as read
    */
   async markAsRead(notificationId: number, userId: number): Promise<Notification> {
     const notification = await this.notificationRepo.findOne({
@@ -149,14 +153,14 @@ export class NotificationService {
   }
 
   /**
-   * Get all categories (for UI purposes)
+   * Get all categories for configuration
    */
   async getAllCategories(): Promise<Category[]> {
     return this.categoryRepo.find();
   }
 
   /**
-   * Create a notification record (internal helper)
+   * Create a new notification (internal use)
    */
   async createNotification(user: User, message: string, articleId?: number): Promise<Notification> {
     const notification = this.notificationRepo.create({
@@ -169,12 +173,76 @@ export class NotificationService {
   }
 
   /**
-   * Get all user configurations (for admin/debugging purposes)
+   * Get all user configurations (for internal use by orchestration service)
    */
   async getAllUserConfigurations(): Promise<NotificationConfiguration[]> {
     return this.configRepo
       .createQueryBuilder('config')
       .leftJoinAndSelect('config.user', 'user')
       .getMany();
+  }
+
+  /**
+   * Test article matching (for debugging and validation)
+   */
+  async testArticleMatching(articleId: number, userId?: number): Promise<any> {
+    const article = await this.articleRepo.findOne({
+      where: { articleID: articleId },
+      relations: ['category']
+    });
+
+    if (!article) {
+      throw new NotFoundException('Article not found');
+    }
+
+    if (userId) {
+      // Test against specific user
+      const config = await this.getNotificationConfig(userId);
+      if (!config) {
+        throw new NotFoundException('User configuration not found');
+      }
+
+      const matchResult = await this.articleMatchingService.matchArticle(article, config);
+      return {
+        article: {
+          id: article.articleID,
+          title: article.articleTitle,
+          category: article.category?.categoryName
+        },
+        userConfig: {
+          userId: config.user.userID,
+          email: config.user.email,
+          enabledCategories: config.enabledCategoryIds,
+          keywords: config.keywords
+        },
+        matchResult
+      };
+    } else {
+      // Test against all users
+      const allConfigs = await this.getAllUserConfigurations();
+
+      const results = [];
+      for (const config of allConfigs) {
+        const matchResult = await this.articleMatchingService.matchArticle(article, config);
+        if (matchResult.matched) {
+          results.push({
+            user: {
+              id: config.user.userID,
+              email: config.user.email
+            },
+            matchResult
+          });
+        }
+      }
+
+      return {
+        article: {
+          id: article.articleID,
+          title: article.articleTitle,
+          category: article.category?.categoryName
+        },
+        results: results.sort((a, b) => b.matchResult.score - a.matchResult.score)
+      };
+    }
   }
 }

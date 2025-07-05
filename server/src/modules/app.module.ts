@@ -3,6 +3,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { ConfigModule } from "@nestjs/config";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ExternalApiModule } from './externalapi/externalapi.module'
+import { NotificationModule } from './notifications/notification.module';
 
 import { User } from "@modules/users/user.entity";
 import { Category } from "@modules/categories/category.entity";
@@ -63,6 +64,7 @@ import { SavedArticleModule } from "@modules/savedarticles/saved-article.module"
     AuthModule,
     ScheduleModule.forRoot(),
     ExternalApiModule,
+    NotificationModule,
     SavedArticleModule,
     UserModule,
   ],
