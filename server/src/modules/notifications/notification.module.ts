@@ -1,18 +1,19 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Notification } from '@modules/notifications/notification.entity';
+import { NotificationConfiguration } from '@modules/notificationconfig/notification-config.entity';
+import { User } from '@modules/users/user.entity';
 import { NotificationService } from './notification.service';
-import { ExternalApiService } from '@modules/externalapi/externalapi.service';
-import { NewsApiAdapter } from '@modules/externalapi/adapters/newsapi.adapter';
-import { TheNewsApiAdapter } from '@modules/externalapi/adapters/thenewsapi.adapter';
 import { ExternalApiModule } from '@modules/externalapi/externalapi.module';
+import { MailerModule } from '@modules/mailer/mailer.module';
 
 @Module({
-    imports: [ExternalApiModule],
-    providers: [
-    NotificationService,
-    ExternalApiService,
-    NewsApiAdapter,
-    TheNewsApiAdapter,
+  imports: [
+    TypeOrmModule.forFeature([Notification, NotificationConfiguration, User]),
+    forwardRef(() => ExternalApiModule),
+    MailerModule,
   ],
-  exports: [NotificationService], 
+  providers: [NotificationService],
+  exports: [NotificationService],
 })
 export class NotificationModule {}
