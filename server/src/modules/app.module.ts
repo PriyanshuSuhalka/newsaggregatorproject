@@ -11,12 +11,14 @@ import { ExternalAPI } from "@modules/externalapi/external-api.entity";
 import { Article } from "@modules/articles/article.entity";
 import { SavedArticle } from "@modules/savedarticles/saved-article.entity";
 import { Notification } from "@modules/notifications/notification.entity";
+
+import { NotificationConfiguration } from '@modules/notificationconfig/notification-config.entity';
+import { Keyword } from '@modules/keywords/keyword.entity';
 import { ExternalServerController } from "@modules/externalapi/external-server.controller";
 import { CategoryController } from "@modules/categories/category.controller";
 import { CategoryService } from "@modules/categories/category.service";
 import { ExternalServerService } from "@modules/externalapi/externalserver.service";
 import { UserModule } from "@modules/users/user.module";
-
 import { ArticleService } from "@modules/articles/article.service";
 import { ArticleController } from "@modules/articles/article.controller";
 import { SavedArticleModule } from "@modules/savedarticles/saved-article.module";
@@ -42,6 +44,8 @@ import { SavedArticleModule } from "@modules/savedarticles/saved-article.module"
         SavedArticle,
         Notification,
         ExternalAPI,
+        Keyword,
+        NotificationConfiguration
       ],
     }),
 
@@ -53,6 +57,8 @@ import { SavedArticleModule } from "@modules/savedarticles/saved-article.module"
       SavedArticle,
       Notification,
       ExternalAPI,
+      Keyword,
+      NotificationConfiguration,
     ]),
     AuthModule,
     ScheduleModule.forRoot(),
