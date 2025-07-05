@@ -1,11 +1,16 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, Between } from "typeorm";
+import { Repository, Between, ILike } from "typeorm";
 import { Article } from "./article.entity";
 import { CreateArticleDto } from "./dto/create-article.dto";
 import { Category } from "@modules/categories/category.entity";
 import { ExternalAPI } from "@modules/externalapi/external-api.entity";
-import { ILike } from "typeorm";
+
+export interface SearchOptions {
+  keyword: string;
+  start?: string;
+  end?: string;
+}
 
 @Injectable()
 export class ArticleService {
@@ -91,5 +96,56 @@ export class ArticleService {
     }
 
     return await query.orderBy("article.publishDate", "DESC").getMany();
+  }
+
+  /**
+   * Enhanced search with date range filtering, sorted by date
+   */
+  async searchArticles(options: SearchOptions): Promise<Article[]> {
+    const { keyword, start, end } = options;
+
+    const query = this.articleRepo
+      .createQueryBuilder("article")
+      .leftJoinAndSelect("article.category", "category")
+      .leftJoinAndSelect("article.externalAPI", "externalAPI");
+
+    // Add keyword search conditions (title and content)
+    query.andWhere(
+      "(LOWER(article.articleTitle) LIKE LOWER(:keyword) OR LOWER(article.articleContent) LIKE LOWER(:keyword))",
+      { keyword: `%${keyword}%` }
+    );
+
+    // Add date range filter if provided
+    if (start && end) {
+      query.andWhere("article.publishDate BETWEEN :start AND :end", {
+        start: new Date(start),
+        end: new Date(end)
+      });
+    }
+
+    // Always sort by date (newest first)
+    query.orderBy("article.publishDate", 'DESC');
+
+    return await query.getMany();
+  }
+
+  /**
+   * Get search suggestions based on partial keyword
+   */
+  async getSearchSuggestions(partialKeyword: string): Promise<string[]> {
+    if (!partialKeyword || partialKeyword.length < 2) {
+      return [];
+    }
+
+    const results = await this.articleRepo
+      .createQueryBuilder("article")
+      .select("DISTINCT article.articleTitle")
+      .where("LOWER(article.articleTitle) LIKE LOWER(:keyword)", {
+        keyword: `%${partialKeyword}%`
+      })
+      .limit(10)
+      .getRawMany();
+
+    return results.map(r => r.article_articleTitle);
   }
 }

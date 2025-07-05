@@ -23,10 +23,26 @@ export class ArticleController {
   }
 
   @Get('search')
-  async searchArticles(@Query('keyword') keyword: string) {
+  async searchArticles(
+    @Query('keyword') keyword: string,
+    @Query('start') start?: string,
+    @Query('end') end?: string
+  ) {
     if (!keyword) {
       throw new BadRequestException('Keyword is required');
     }
-    return this.articleService.searchByKeyword(keyword);
+    return this.articleService.searchArticles({
+      keyword,
+      start,
+      end
+    });
+  }
+
+  @Get('search/suggestions')
+  async getSearchSuggestions(@Query('q') query: string) {
+    if (!query || query.length < 2) {
+      return [];
+    }
+    return this.articleService.getSearchSuggestions(query);
   }
 }

@@ -6,7 +6,7 @@ export class Notification {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column()
+  @Column({ length: 255 })
   message!: string;
 
   @Column({ default: false })
