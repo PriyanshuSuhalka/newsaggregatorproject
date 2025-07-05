@@ -1,7 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
 import { User } from '../users/user.entity';
-import { Category } from '../categories/category.entity';
-import { Keyword } from '../keywords/keyword.entity';
 
 @Entity('notification_config')
 export class NotificationConfiguration {
@@ -12,12 +10,14 @@ export class NotificationConfiguration {
   @JoinColumn({ name: 'user_id' })
   user!: User;
 
+  // Store enabled category IDs as JSON array
+  @Column('simple-json', { nullable: true })
+  enabledCategoryIds?: number[];
 
-  @ManyToOne(() => Category, { eager: true })
-  @JoinColumn({ name: 'category_id' })
-  category!: Category;
+  // Store keywords as JSON array
+  @Column('simple-json', { nullable: true })
+  keywords?: string[];
 
-  @ManyToOne(() => Keyword, { eager: true })
-  @JoinColumn({ name: 'keyword_id' })
-  keyword!: Keyword;
+  @Column({ default: true })
+  emailNotificationsEnabled!: boolean;
 }
