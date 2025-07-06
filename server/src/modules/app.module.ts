@@ -4,6 +4,7 @@ import { ConfigModule } from "@nestjs/config";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ExternalApiModule } from './externalapi/externalapi.module'
 import { NotificationModule } from './notifications/notification.module';
+import { ArticleLikeModule } from './articlelikes/article-like.module';
 
 import { User } from "@modules/users/user.entity";
 import { Category } from "@modules/categories/category.entity";
@@ -12,6 +13,7 @@ import { ExternalAPI } from "@modules/externalapi/external-api.entity";
 import { Article } from "@modules/articles/article.entity";
 import { SavedArticle } from "@modules/savedarticles/saved-article.entity";
 import { Notification } from "@modules/notifications/notification.entity";
+import { ArticleLike } from "@modules/articlelikes/article-like.entity";
 
 import { NotificationConfiguration } from '@modules/notificationconfig/notification-config.entity';
 import { Keyword } from '@modules/keywords/keyword.entity';
@@ -46,7 +48,8 @@ import { SavedArticleModule } from "@modules/savedarticles/saved-article.module"
         Notification,
         ExternalAPI,
         Keyword,
-        NotificationConfiguration
+        NotificationConfiguration,
+        ArticleLike
       ],
     }),
 
@@ -60,11 +63,13 @@ import { SavedArticleModule } from "@modules/savedarticles/saved-article.module"
       ExternalAPI,
       Keyword,
       NotificationConfiguration,
+      ArticleLike,
     ]),
     AuthModule,
     ScheduleModule.forRoot(),
     ExternalApiModule,
     NotificationModule,
+    ArticleLikeModule,
     SavedArticleModule,
     UserModule,
   ],

@@ -40,6 +40,12 @@ export class NotificationOrchestrationService {
    * Main orchestration method to notify users about a new article
    */
   async notifyUsersForArticle(article: Article): Promise<NotificationResult> {
+    // Handle null/undefined article
+    if (!article) {
+      this.logger.warn('❌ Article is null or undefined');
+      return this.createEmptyResult();
+    }
+
     const categoryId = article.category?.categoryID;
     const categoryName = article.category?.categoryName;
 
@@ -51,7 +57,14 @@ export class NotificationOrchestrationService {
     this.logger.log(`🔍 Processing notifications for article: "${article.articleTitle}" in category "${categoryName}"`);
 
     // Get all user configurations
-    const userConfigs = await this.getAllUserConfigurations();
+    let userConfigs: NotificationConfiguration[];
+    try {
+      userConfigs = await this.getAllUserConfigurations();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`❌ Failed to get user configurations: ${errorMessage}`);
+      return this.createEmptyResult();
+    }
     
     if (userConfigs.length === 0) {
       this.logger.log(`📭 No user configurations found`);
@@ -87,14 +100,20 @@ export class NotificationOrchestrationService {
     const matchingUsers: Array<{ config: NotificationConfiguration; matchResult: MatchResult }> = [];
 
     for (const config of userConfigs) {
-      const matchResult = await this.articleMatchingService.matchArticle(article, config);
-      
-      if (matchResult.matched && matchResult.score > 0) {
-        matchingUsers.push({ config, matchResult });
+      try {
+        const matchResult = await this.articleMatchingService.matchArticle(article, config);
         
-        this.logger.log(
-          `✅ User ${config.user.email} matched with score ${matchResult.score}: ${matchResult.reasons.join(', ')}`
-        );
+        if (matchResult.matched && matchResult.score > 0) {
+          matchingUsers.push({ config, matchResult });
+          
+          this.logger.log(
+            `✅ User ${config.user.email} matched with score ${matchResult.score}: ${matchResult.reasons.join(', ')}`
+          );
+        }
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(`❌ Error matching article for user ${config.user.email}: ${errorMessage}`);
+        // Continue processing other users
       }
     }
 
@@ -168,23 +187,26 @@ export class NotificationOrchestrationService {
     // Create notification message
     const message = this.createNotificationMessage(article, matchResult);
 
+    // Try to save in-app notification
     try {
-      // Save in-app notification
       await this.saveInAppNotification(user, article, message);
       userResult.notificationSent = true;
-      
       this.logger.log(`🔔 Notification saved for ${user.email} (score: ${matchResult.score})`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`❌ Failed to save notification to database for ${user.email}: ${errorMessage}`);
+    }
 
-      // Send email if user has email notifications enabled
+    // Try to send email if user has email notifications enabled (independent of in-app notification)
+    try {
       const userConfig = await this.getUserConfiguration(user.userID);
       if (userConfig?.emailNotificationsEnabled) {
         const emailSent = await this.sendEmailNotification(user, article);
         userResult.emailSent = emailSent;
       }
-
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`❌ Failed to send notification to ${user.email}: ${errorMessage}`);
+      this.logger.error(`❌ Failed to send email to ${user.email}: ${errorMessage}`);
     }
 
     return userResult;

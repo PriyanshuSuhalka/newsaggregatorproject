@@ -22,18 +22,23 @@ export async function showUserMenu(userEmail: string) {
     console.log(`\nWelcome to the News Application, ${userEmail}! Date: ${currentDate}`);
     console.log(`Time: ${currentTime}`);
     console.log("Please choose the options below");
+    console.log("1. Headlines");
+    console.log("2. Saved Articles");
+    console.log("3. Search");
+    console.log("4. Notifications");
+    console.log("5. Logout");
 
     const { choice } = await inquirer.prompt({
-      type: "list",
+      type: "input",
       name: "choice",
-      message: "Select an option:",
-      choices: [
-        { name: "Headlines", value: "1" },
-        { name: "Saved Articles", value: "2" },
-        { name: "Search", value: "3" },
-        { name: "Notifications", value: "4" },
-        { name: "Logout", value: "5" }
-      ]
+      message: "Enter your choice (1-5):",
+      validate: (input) => {
+        const num = parseInt(input);
+        if (isNaN(num) || num < 1 || num > 5) {
+          return 'Please enter a number between 1 and 5.';
+        }
+        return true;
+      }
     });
 
     switch (choice) {
@@ -98,14 +103,24 @@ async function handleSearch(userEmail: string) {
         }
         console.log();
         
+        console.log("Would you like to search again?");
+        console.log("1. Yes");
+        console.log("2. No");
+        
         const { tryAgain } = await inquirer.prompt({
-          type: 'confirm',
+          type: 'input',
           name: 'tryAgain',
-          message: 'Would you like to search again?',
-          default: true
+          message: 'Enter your choice (1-2):',
+          validate: (input) => {
+            const num = parseInt(input);
+            if (isNaN(num) || num < 1 || num > 2) {
+              return 'Please enter 1 or 2.';
+            }
+            return true;
+          }
         });
         
-        if (!tryAgain) break;
+        if (tryAgain === '2') break;
         continue;
       }
 
@@ -115,14 +130,24 @@ async function handleSearch(userEmail: string) {
     } catch (error: any) {
       console.error("Search failed:", error.response?.data?.message || error.message);
       
+      console.log("Would you like to try searching again?");
+      console.log("1. Yes");
+      console.log("2. No");
+      
       const { tryAgain } = await inquirer.prompt({
-        type: 'confirm',
+        type: 'input',
         name: 'tryAgain',
-        message: 'Would you like to try searching again?',
-        default: true
+        message: 'Enter your choice (1-2):',
+        validate: (input) => {
+          const num = parseInt(input);
+          if (isNaN(num) || num < 1 || num > 2) {
+            return 'Please enter 1 or 2.';
+          }
+          return true;
+        }
       });
       
-      if (!tryAgain) break;
+      if (tryAgain === '2') break;
     }
   }
 }
@@ -131,14 +156,24 @@ async function getSearchOptions() {
   const options: any = {};
 
   // Ask about date filtering
+  console.log("\nDo you want to filter by date range?");
+  console.log("1. Yes");
+  console.log("2. No");
+  
   const { useDateFilter } = await inquirer.prompt({
-    type: 'confirm',
+    type: 'input',
     name: 'useDateFilter',
-    message: 'Do you want to filter by date range?',
-    default: false
+    message: 'Enter your choice (1-2):',
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > 2) {
+        return 'Please enter 1 or 2.';
+      }
+      return true;
+    }
   });
 
-  options.dateFilter = useDateFilter;
+  options.dateFilter = useDateFilter === '1';
 
   if (useDateFilter) {
     const dateRange = await inquirer.prompt([
@@ -173,8 +208,9 @@ async function displaySearchResults(keyword: string, articles: any[], searchOpti
   }
   console.log(` Found ${articles.length} result(s) (sorted by date)\n`);
 
-  // Display articles with better formatting
-  articles.forEach((article: any, index: number) => {
+  // Display articles with better formatting including like/dislike counts
+  for (let index = 0; index < articles.length; index++) {
+    const article = articles[index];
     console.log(`${index + 1}. ${article.articleTitle}`);
     
     // Truncate content for better display
@@ -186,37 +222,59 @@ async function displaySearchResults(keyword: string, articles: any[], searchOpti
     console.log(`   Source: ${article.source}`);
     console.log(`   Published: ${dayjs(article.publishDate).format('DD-MMM-YYYY HH:mm')}`);
     console.log(`   Category: ${article.category?.categoryName || 'Unknown'}`);
+    
+    // Fetch and display like/dislike counts
+    const likeStats = await fetchArticleLikeStats(article.articleID);
+    let voteStatus = '';
+    if (likeStats.userVote === 'LIKE') {
+      voteStatus = ' (You liked this)';
+    } else if (likeStats.userVote === 'DISLIKE') {
+      voteStatus = ' (You disliked this)';
+    }
+    console.log(`   Likes: ${likeStats.likesCount} | Dislikes: ${likeStats.dislikesCount}${voteStatus}`);
+    
     console.log(`   URL: ${article.URL}`);
     console.log(`   ID: ${article.articleID}\n`);
-  });
+  }
 
   // Post-search actions
   await postSearchActions(articles);
 }
 
 async function postSearchActions(articles: any[]) {
+  console.log("\nWhat would you like to do?");
+  console.log("1. Save an Article");
+  console.log("2. Like/Dislike an Article");
+  console.log("3. New Search");
+  console.log("4. Back to Main Menu");
+  console.log("5. Logout");
+
   const { action } = await inquirer.prompt({
-    type: 'list',
+    type: 'input',
     name: 'action',
-    message: 'What would you like to do?',
-    choices: [
-      { name: 'Save an Article', value: 'save' },
-      { name: 'New Search', value: 'search' },
-      { name: 'Back to Main Menu', value: 'back' },
-      { name: 'Logout', value: 'logout' }
-    ]
+    message: 'Enter your choice (1-5):',
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > 5) {
+        return 'Please enter a number between 1 and 5.';
+      }
+      return true;
+    }
   });
 
   switch (action) {
-    case 'save':
+    case '1':
       await handleSaveArticle(articles);
       break;
-    case 'search':
+    case '2':
+      await handleLikeDislikeArticle(articles);
+      break;
+    case '3':
       // Will return to search function
       break;
-    case 'back':
+    case '4':
       return;
-    case 'logout':
+    case '5':
       console.log("Logging out...");
       process.exit(0);
   }
@@ -340,8 +398,9 @@ async function displayHeadlines(title: string, articles: any[]) {
   });
   console.log();
 
-  // Display articles with enhanced formatting
-  articles.forEach((article: any, index: number) => {
+  // Display articles with enhanced formatting including like/dislike counts
+  for (let index = 0; index < articles.length; index++) {
+    const article = articles[index];
     const articleNum = `${index + 1}`.padStart(2, '0');
     const publishDate = dayjs(article.publishDate);
     
@@ -369,6 +428,16 @@ async function displayHeadlines(title: string, articles: any[]) {
     
     console.log(`     Category: ${article.category?.categoryName || 'Uncategorized'}`);
     
+    // Fetch and display like/dislike counts
+    const likeStats = await fetchArticleLikeStats(article.articleID);
+    let voteStatus = '';
+    if (likeStats.userVote === 'LIKE') {
+      voteStatus = ' (You liked this)';
+    } else if (likeStats.userVote === 'DISLIKE') {
+      voteStatus = ' (You disliked this)';
+    }
+    console.log(`     Likes: ${likeStats.likesCount} | Dislikes: ${likeStats.dislikesCount}${voteStatus}`);
+    
     // URL display with length check
     const url = article.URL || 'No URL available';
     const displayUrl = url.length > 60 ? url.substring(0, 57) + '...' : url;
@@ -376,7 +445,7 @@ async function displayHeadlines(title: string, articles: any[]) {
     
     console.log(`     ID: ${article.articleID}`);
     console.log(); // Add spacing between articles
-  });
+  }
 
   // Post-headlines actions
   await postHeadlinesActions(articles);
@@ -384,41 +453,54 @@ async function displayHeadlines(title: string, articles: any[]) {
 
 async function postHeadlinesActions(articles: any[]) {
   console.log("─".repeat(50));
+  console.log("What would you like to do next?");
+  console.log("1. Save an Article to Your Collection");
+  console.log("2. Like/Dislike an Article");
+  console.log("3. Search for Specific Articles");
+  console.log("4. View Article Statistics");
+  console.log("5. Back to Headlines Menu");
+  console.log("6. Return to Main Menu");
+  console.log("7. Logout");
+
   const { action } = await inquirer.prompt({
-    type: 'list',
+    type: 'input',
     name: 'action',
-    message: 'What would you like to do next?',
-    choices: [
-      { name: 'Save an Article to Your Collection', value: 'save' },
-      { name: 'Search for Specific Articles', value: 'search' },
-      { name: 'View Article Statistics', value: 'stats' },
-      { name: 'Back to Headlines Menu', value: 'back' },
-      { name: 'Return to Main Menu', value: 'main' },
-      { name: 'Logout', value: 'logout' }
-    ]
+    message: 'Enter your choice (1-7):',
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > 7) {
+        return 'Please enter a number between 1 and 7.';
+      }
+      return true;
+    }
   });
 
   switch (action) {
-    case 'save':
+    case '1':
       await handleSaveArticle(articles);
       // After saving, show actions again
       await postHeadlinesActions(articles);
       break;
-    case 'search':
+    case '2':
+      await handleLikeDislikeArticle(articles);
+      // After liking/disliking, show actions again
+      await postHeadlinesActions(articles);
+      break;
+    case '3':
       console.log("Redirecting to search functionality...\n");
       // This will exit the headlines flow and return to main menu where user can select search
       return;
-    case 'stats':
+    case '4':
       await showArticleStats(articles);
       await postHeadlinesActions(articles);
       break;
-    case 'back':
+    case '5':
       // Returns to headlines submenu
       return;
-    case 'main':
+    case '6':
       // Exit completely to main menu
       return;
-    case 'logout':
+    case '7':
       console.log("Thank you for using the News Application. Goodbye!");
       process.exit(0);
   }
@@ -474,7 +556,7 @@ async function showArticleStats(articles: any[]) {
   ).length;
   
   if (recentCount > 0) {
-    console.log(`⏰ Recent (last 24h): ${recentCount} articles`);
+    console.log(` Recent (last 24h): ${recentCount} articles`);
   }
   
   console.log();
@@ -496,7 +578,9 @@ async function fetchSavedArticles(userName: string, userId: number) {
     console.log(`\nSaved Articles for ${userName}`);
     console.log(`Found ${savedArticles.length} saved article(s)\n`);
     
-    savedArticles.forEach((entry: any, index: number) => {
+    // Display saved articles with like/dislike counts
+    for (let index = 0; index < savedArticles.length; index++) {
+      const entry = savedArticles[index];
       const article = entry.article;
       console.log(`${index + 1}. ${article.articleTitle}`);
       
@@ -509,9 +593,20 @@ async function fetchSavedArticles(userName: string, userId: number) {
       console.log(`   Source: ${article.source}`);
       console.log(`   Published: ${dayjs(article.publishDate).format('DD-MMM-YYYY HH:mm')}`);
       console.log(`   Category: ${article.category?.categoryName || 'Unknown'}`);
+      
+      // Fetch and display like/dislike counts
+      const likeStats = await fetchArticleLikeStats(article.articleID);
+      let voteStatus = '';
+      if (likeStats.userVote === 'LIKE') {
+        voteStatus = ' (You liked this)';
+      } else if (likeStats.userVote === 'DISLIKE') {
+        voteStatus = ' (You disliked this)';
+      }
+      console.log(`   Likes: ${likeStats.likesCount} | Dislikes: ${likeStats.dislikesCount}${voteStatus}`);
+      
       console.log(`   URL: ${article.URL}`);
       console.log(`   ID: ${article.articleID}\n`);
-    });
+    }
     
   } catch (error: any) {
     console.error("Error fetching saved articles:", error.response?.data?.message || error.message);
@@ -535,32 +630,40 @@ async function showNotificationsMenu(userEmail: string, userID: number) {
       } else {
         console.log("All notifications read");
       }
-    } catch (error) {
-      // Silently continue if we can't fetch notification count
+    } catch (error: any) {
+      console.error("Failed to fetch notification count:", error.response?.data?.message || error.message);
+      console.log("You can still view and manage your notifications."); 
     }
 
+    console.log("\nWhat would you like to do?");
+    console.log("1. View Notifications");
+    console.log("2. Configure Notification Preferences");
+    console.log("3. Back to Main Menu");
+    console.log("4. Logout");
+
     const { choice } = await inquirer.prompt({
-      type: "list",
+      type: "input",
       name: "choice",
-      message: "What would you like to do?",
-      choices: [
-        "View Notifications",
-        "Configure Notification Preferences", 
-        "Back to Main Menu",
-        "Logout"
-      ]
+      message: "Enter your choice (1-4):",
+      validate: (input) => {
+        const num = parseInt(input);
+        if (isNaN(num) || num < 1 || num > 4) {
+          return 'Please enter a number between 1 and 4.';
+        }
+        return true;
+      }
     });
 
     switch (choice) {
-      case "View Notifications":
+      case "1":
         await viewNotifications(userID);
         break;
-      case "Configure Notification Preferences":
+      case "2":
         await configureNotifications(userID);
         break;
-      case "Back to Main Menu":
+      case "3":
         return; // Go back to main menu
-      case "Logout":
+      case "4":
         console.log("Logged out.");
         process.exit(0);
     }
@@ -640,17 +743,27 @@ async function viewNotifications(userID: number) {
 }
 
 async function markSpecificNotificationAsRead(userID: number, unreadNotifications: any[]) {
-  const choices = unreadNotifications.map((notification: any, index: number) => ({
-    name: `${index + 1}. ${notification.message.substring(0, 60)}${notification.message.length > 60 ? '...' : ''}`,
-    value: notification.id
-  }));
-
-  const { notificationId } = await inquirer.prompt({
-    type: "list",
-    name: "notificationId",
-    message: "Select notification to mark as read:",
-    choices: choices
+  console.log("\nSelect notification to mark as read:");
+  unreadNotifications.forEach((notification: any, index: number) => {
+    const shortMessage = notification.message.substring(0, 60) + (notification.message.length > 60 ? '...' : '');
+    console.log(`${index + 1}. ${shortMessage}`);
   });
+
+  const { notificationChoice } = await inquirer.prompt({
+    type: "input",
+    name: "notificationChoice",
+    message: `Enter your choice (1-${unreadNotifications.length}):`,
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > unreadNotifications.length) {
+        return `Please enter a number between 1 and ${unreadNotifications.length}.`;
+      }
+      return true;
+    }
+  });
+
+  const selectedNotification = unreadNotifications[parseInt(notificationChoice) - 1];
+  const notificationId = selectedNotification.id;
 
   try {
     await axios.post(`${BASE_URL}/notifications/${notificationId}/read`, null, {
@@ -663,14 +776,24 @@ async function markSpecificNotificationAsRead(userID: number, unreadNotification
 }
 
 async function markAllNotificationsAsRead(userID: number, unreadNotifications: any[]) {
+  console.log(`\nMark all ${unreadNotifications.length} notifications as read?`);
+  console.log("1. Yes");
+  console.log("2. No");
+  
   const { confirm } = await inquirer.prompt({
-    type: "confirm",
+    type: "input",
     name: "confirm",
-    message: `Mark all ${unreadNotifications.length} notifications as read?`,
-    default: false
+    message: "Enter your choice (1-2):",
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > 2) {
+        return 'Please enter 1 or 2.';
+      }
+      return true;
+    }
   });
 
-  if (!confirm) {
+  if (confirm === '2') {
     console.log("Cancelled.");
     return;
   }
@@ -720,29 +843,35 @@ async function configureNotifications(userID: number) {
     // Main configuration menu
     while (true) {
       console.log("\n--- What would you like to do? ---");
+      console.log("1. Manage Category Subscriptions");
+      console.log("2. Manage Keyword Alerts");
+      console.log("3. Email Notification Settings");
+      console.log("4. Save & Exit");
+      console.log("5. Cancel Changes");
+      
       const { mainChoice } = await inquirer.prompt({
-        type: "list",
+        type: "input",
         name: "mainChoice",
-        message: "Choose an option:",
-        choices: [
-          "Manage Category Subscriptions",
-          "Manage Keyword Alerts", 
-          "Email Notification Settings",
-          "Save & Exit",
-          "Cancel Changes"
-        ]
+        message: "Enter your choice (1-5):",
+        validate: (input) => {
+          const num = parseInt(input);
+          if (isNaN(num) || num < 1 || num > 5) {
+            return 'Please enter a number between 1 and 5.';
+          }
+          return true;
+        }
       });
 
-      if (mainChoice === "Manage Category Subscriptions") {
+      if (mainChoice === "1") {
         await manageCategorySubscriptions(userID, availableCategories, currentEnabledIds);
-      } else if (mainChoice === "Manage Keyword Alerts") {
+      } else if (mainChoice === "2") {
         await manageKeywordAlerts(userID, currentKeywords);
-      } else if (mainChoice === "Email Notification Settings") {
+      } else if (mainChoice === "3") {
         await manageEmailSettings(userID, config);
-      } else if (mainChoice === "Save & Exit") {
+      } else if (mainChoice === "4") {
         console.log("\nAll changes saved! You'll receive notifications based on your preferences.");
         break;
-      } else if (mainChoice === "Cancel Changes") {
+      } else if (mainChoice === "5") {
         console.log("\nChanges cancelled.");
         break;
       } 
@@ -755,21 +884,54 @@ async function configureNotifications(userID: number) {
 
 async function manageCategorySubscriptions(userID: number, availableCategories: any[], currentEnabledIds: number[]) {
   console.log("\n=== Category Subscriptions ===");
-  console.log("Select categories to receive notifications about:");
+  console.log("Current category subscriptions:");
   
-  // Use checkbox prompt for multiple selections
-  const categoryChoices = availableCategories.map(cat => ({
-    name: cat.categoryName,
-    value: cat.categoryID,
-    checked: currentEnabledIds.includes(cat.categoryID)
-  }));
-
-  const { selectedCategories } = await inquirer.prompt({
-    type: "checkbox",
-    name: "selectedCategories",
-    message: "Choose categories (use space to select/deselect, enter to confirm):",
-    choices: categoryChoices
+  // Show current selections
+  availableCategories.forEach((cat, index) => {
+    const isEnabled = currentEnabledIds.includes(cat.categoryID);
+    const status = isEnabled ? "[ENABLED]" : "[DISABLED]";
+    console.log(`${index + 1}. ${cat.categoryName} ${status}`);
   });
+  
+  console.log("\nEnter category numbers to toggle (separate multiple with commas, e.g., 1,3,5):");
+  console.log("Or press Enter to keep current selections.");
+
+  const { categoryInput } = await inquirer.prompt({
+    type: "input",
+    name: "categoryInput",
+    message: "Enter category numbers to toggle:",
+    validate: (input) => {
+      if (input.trim() === '') return true; // Allow empty input
+      
+      const numbers = input.split(',').map(n => n.trim());
+      for (const num of numbers) {
+        const parsed = parseInt(num);
+        if (isNaN(parsed) || parsed < 1 || parsed > availableCategories.length) {
+          return `Please enter valid numbers between 1 and ${availableCategories.length}, separated by commas.`;
+        }
+      }
+      return true;
+    }
+  });
+
+  let selectedCategories = [...currentEnabledIds]; // Start with current selections
+
+  if (categoryInput.trim() !== '') {
+    const toggleNumbers = categoryInput.split(',').map((n: string) => parseInt(n.trim()));
+    
+    toggleNumbers.forEach((num: number) => {
+      const categoryID = availableCategories[num - 1].categoryID;
+      const index = selectedCategories.indexOf(categoryID);
+      
+      if (index > -1) {
+        // Remove if already selected
+        selectedCategories.splice(index, 1);
+      } else {
+        // Add if not selected
+        selectedCategories.push(categoryID);
+      }
+    });
+  }
 
   // Update the configuration
   try {
@@ -805,23 +967,30 @@ async function manageKeywordAlerts(userID: number, currentKeywords: string[]) {
   }
 
   while (true) {
+    console.log("\nWhat would you like to do?");
+    console.log("1. Add new keywords");
+    console.log("2. Remove keywords");
+    console.log("3. Replace all keywords");
+    console.log("4. Back to main menu");
+    
     const { keywordAction } = await inquirer.prompt({
-      type: "list",
+      type: "input",
       name: "keywordAction",
-      message: "What would you like to do?",
-      choices: [
-        "Add new keywords",
-        "Remove keywords",
-        "Replace all keywords",
-        "Back to main menu"
-      ]
+      message: "Enter your choice (1-4):",
+      validate: (input) => {
+        const num = parseInt(input);
+        if (isNaN(num) || num < 1 || num > 4) {
+          return 'Please enter a number between 1 and 4.';
+        }
+        return true;
+      }
     });
 
-    if (keywordAction === "Add new keywords") {
+    if (keywordAction === "1") {
       await addKeywords(userID, currentKeywords);
-    } else if (keywordAction === "Remove keywords") {
+    } else if (keywordAction === "2") {
       await removeKeywords(userID, currentKeywords);
-    } else if (keywordAction === "Replace all keywords") {
+    } else if (keywordAction === "3") {
       await replaceAllKeywords(userID);
     } else {
       break;
@@ -867,15 +1036,35 @@ async function removeKeywords(userID: number, currentKeywords: string[]) {
     return;
   }
 
-  const { keywordsToRemove } = await inquirer.prompt({
-    type: "checkbox",
-    name: "keywordsToRemove",
-    message: "Select keywords to remove:",
-    choices: currentKeywords.map(keyword => ({
-      name: keyword,
-      value: keyword
-    }))
+  console.log("\nCurrent keywords:");
+  currentKeywords.forEach((keyword, index) => {
+    console.log(`${index + 1}. ${keyword}`);
   });
+  
+  console.log("\nEnter keyword numbers to remove (separate multiple with commas, e.g., 1,3,5):");
+
+  const { keywordInput } = await inquirer.prompt({
+    type: "input",
+    name: "keywordInput",
+    message: "Enter keyword numbers to remove:",
+    validate: (input) => {
+      if (input.trim() === '') {
+        return 'Please enter at least one keyword number to remove.';
+      }
+      
+      const numbers = input.split(',').map((n: string) => n.trim());
+      for (const num of numbers) {
+        const parsed = parseInt(num);
+        if (isNaN(parsed) || parsed < 1 || parsed > currentKeywords.length) {
+          return `Please enter valid numbers between 1 and ${currentKeywords.length}, separated by commas.`;
+        }
+      }
+      return true;
+    }
+  });
+
+  const removeNumbers = keywordInput.split(',').map((n: string) => parseInt(n.trim()));
+  const keywordsToRemove = removeNumbers.map((num: number) => currentKeywords[num - 1]);
 
   if (keywordsToRemove.length === 0) {
     console.log(" No keywords selected for removal");
@@ -930,21 +1119,148 @@ async function manageEmailSettings(userID: number, config: any) {
   const currentSetting = config?.emailNotificationsEnabled ?? true;
   console.log(`Current setting: ${currentSetting ? " Enabled" : " Disabled"}`);
 
+  console.log("\nEnable email notifications?");
+  console.log("1. Yes");
+  console.log("2. No");
+
   const { emailEnabled } = await inquirer.prompt({
-    type: "confirm",
+    type: "input",
     name: "emailEnabled",
-    message: "Enable email notifications?",
-    default: currentSetting
+    message: "Enter your choice (1-2):",
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > 2) {
+        return 'Please enter 1 or 2.';
+      }
+      return true;
+    }
   });
+
+  const enableEmail = emailEnabled === '1';
 
   try {
     await axios.post(`${BASE_URL}/notifications/config`, {
       userId: userID,
-      emailNotificationsEnabled: emailEnabled
+      emailNotificationsEnabled: enableEmail
     });
 
-    console.log(`\n Email notifications ${emailEnabled ? "enabled" : "disabled"}`);
+    console.log(`\n Email notifications ${enableEmail ? "enabled" : "disabled"}`);
   } catch (error: any) {
     console.error(" Failed to update email settings:", error.response?.data?.message || error.message);
+  }
+}
+
+// Function to fetch like/dislike stats for an article
+async function fetchArticleLikeStats(articleId: number): Promise<{ likesCount: number; dislikesCount: number; userVote?: string | null }> {
+  try {
+    const response = await axios.get(`${BASE_URL}/articles/${articleId}/likes`, {
+      params: { userId: userData.userID }
+    });
+    return response.data;
+  } catch (error) {
+    // Return default values if fetching fails
+    return { likesCount: 0, dislikesCount: 0, userVote: null };
+  }
+}
+
+// Function to handle like/dislike article interaction
+async function handleLikeDislikeArticle(articles: any[]) {
+  console.log("\nLike/Dislike an Article");
+  console.log("=".repeat(30));
+
+  // Show available articles with current like/dislike status
+  console.log("\nAvailable articles:");
+  for (let i = 0; i < articles.length; i++) {
+    const article = articles[i];
+    const likeStats = await fetchArticleLikeStats(article.articleID);
+    let voteStatus = '';
+    if (likeStats.userVote === 'LIKE') {
+      voteStatus = ' (You liked this)';
+    } else if (likeStats.userVote === 'DISLIKE') {
+      voteStatus = ' (You disliked this)';
+    }
+    console.log(`${i + 1}. ${article.articleTitle.substring(0, 50)}...`);
+    console.log(`   Likes: ${likeStats.likesCount} | Dislikes: ${likeStats.dislikesCount}${voteStatus}`);
+  }
+
+  const { articleChoice } = await inquirer.prompt({
+    type: 'input',
+    name: 'articleChoice',
+    message: 'Enter the article number (1-' + articles.length + '):',
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > articles.length) {
+        return 'Please enter a valid article number.';
+      }
+      return true;
+    }
+  });
+
+  const selectedArticle = articles[parseInt(articleChoice) - 1];
+  const currentStats = await fetchArticleLikeStats(selectedArticle.articleID);
+
+  console.log(`\nSelected: ${selectedArticle.articleTitle}`);
+  console.log(`Current status: Likes: ${currentStats.likesCount} | Dislikes: ${currentStats.dislikesCount}`);
+  if (currentStats.userVote) {
+    console.log(`Your current vote: ${currentStats.userVote === 'LIKE' ? 'Liked' : 'Disliked'}`);
+  } else {
+    console.log('You have not voted on this article yet.');
+  }
+
+  console.log("\nWhat would you like to do?");
+  console.log("1. Like this article");
+  console.log("2. Dislike this article");
+  console.log("3. Remove my vote");
+  console.log("4. Cancel");
+
+  const { voteAction } = await inquirer.prompt({
+    type: 'input',
+    name: 'voteAction',
+    message: 'Enter your choice (1-4):',
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > 4) {
+        return 'Please enter a number between 1 and 4.';
+      }
+      return true;
+    }
+  });
+
+  if (voteAction === '4') {
+    return;
+  }
+
+  try {
+    switch (voteAction) {
+      case '1':
+        await axios.post(`${BASE_URL}/articles/${selectedArticle.articleID}/like`, null, {
+          params: { userId: userData.userID }
+        });
+        console.log('Article liked successfully!');
+        break;
+      case '2':
+        await axios.post(`${BASE_URL}/articles/${selectedArticle.articleID}/dislike`, null, {
+          params: { userId: userData.userID }
+        });
+        console.log('Article disliked successfully!');
+        break;
+      case '3':
+        await axios.delete(`${BASE_URL}/articles/${selectedArticle.articleID}/like`, {
+          params: { userId: userData.userID }
+        });
+        console.log('Vote removed successfully!');
+        break;
+    }
+
+    // Show updated stats
+    const updatedStats = await fetchArticleLikeStats(selectedArticle.articleID);
+    console.log(`Updated status: Likes: ${updatedStats.likesCount} | Dislikes: ${updatedStats.dislikesCount}`);
+    
+  } catch (error: any) {
+    if (error.response?.status === 400) {
+      console.log('Note:', error.response.data.message);
+    } else {
+      console.error('Error updating vote:', error.response?.data?.message || error.message);
+    }
   }
 }
