@@ -128,17 +128,6 @@ export class ArticleMatchingService {
     // Check for category synonyms in article title and content
     const titleLower = article.articleTitle.toLowerCase();
     const contentLower = article.articleContent.toLowerCase();
-
-    // We need to map category IDs to category names first
-    // For now, we'll need to get the category information from the database
-    // This is a simplified approach - in production, we'd want to pass category info
-    
-    // Check against synonyms only for categories the user has enabled
-    // Since we don't have a direct ID->name mapping, we'll be more conservative
-    // and only match exact category names or very specific synonyms
-    
-    // Only check if the article category itself matches enabled categories
-    // through more conservative synonym matching
     if (this.isConservativeCategoryMatch(articleCategoryName, config.enabledCategoryIds)) {
       result.matched = true;
       result.score += 20; // Lower score for synonym match

@@ -67,6 +67,10 @@ describe('NotificationOrchestrationService', () => {
   const mockConfigRepo = {
     find: jest.fn(),
     findOne: jest.fn(),
+    createQueryBuilder: jest.fn().mockReturnValue({
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      getMany: jest.fn()
+    })
   };
 
   const mockUserRepo = {
@@ -126,14 +130,23 @@ describe('NotificationOrchestrationService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('processNewArticle', () => {
+  describe('notifyUsersForArticle', () => {
+    beforeEach(() => {
+      // Set up the query builder chain for getAllUserConfigurations
+      const queryBuilder = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([mockConfig])
+      };
+      mockConfigRepo.createQueryBuilder.mockReturnValue(queryBuilder);
+    });
+
     it('should process new article and send notifications', async () => {
-      mockConfigRepo.find.mockResolvedValue([mockConfig]);
       mockMatchingService.matchArticle.mockResolvedValue(mockMatchResult);
       mockNotificationRepo.save.mockResolvedValue({});
+      mockConfigRepo.findOne.mockResolvedValue(mockConfig); // For getUserConfiguration
       mockMailHelper.sendArticleNotification.mockResolvedValue(undefined);
 
-      const result: NotificationResult = await service.processNewArticle(mockArticle);
+      const result: NotificationResult = await service.notifyUsersForArticle(mockArticle);
 
       expect(result.totalNotificationsSent).toBe(1);
       expect(result.totalEmailsSent).toBe(1);
@@ -144,9 +157,13 @@ describe('NotificationOrchestrationService', () => {
     });
 
     it('should skip users with no matching configuration', async () => {
-      mockConfigRepo.find.mockResolvedValue([]);
+      const queryBuilder = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]) // No configs
+      };
+      mockConfigRepo.createQueryBuilder.mockReturnValue(queryBuilder);
 
-      const result: NotificationResult = await service.processNewArticle(mockArticle);
+      const result: NotificationResult = await service.notifyUsersForArticle(mockArticle);
 
       expect(result.totalNotificationsSent).toBe(0);
       expect(result.totalEmailsSent).toBe(0);
@@ -162,24 +179,22 @@ describe('NotificationOrchestrationService', () => {
         matchedKeywords: []
       };
 
-      mockConfigRepo.find.mockResolvedValue([mockConfig]);
       mockMatchingService.matchArticle.mockResolvedValue(noMatchResult);
 
-      const result: NotificationResult = await service.processNewArticle(mockArticle);
+      const result: NotificationResult = await service.notifyUsersForArticle(mockArticle);
 
       expect(result.totalNotificationsSent).toBe(0);
       expect(result.totalEmailsSent).toBe(0);
-      expect(result.userNotifications[0].notificationSent).toBe(false);
-      expect(result.userNotifications[0].emailSent).toBe(false);
+      expect(result.userNotifications).toHaveLength(0);
     });
 
     it('should handle notification creation failure gracefully', async () => {
-      mockConfigRepo.find.mockResolvedValue([mockConfig]);
       mockMatchingService.matchArticle.mockResolvedValue(mockMatchResult);
       mockNotificationRepo.save.mockRejectedValue(new Error('Database error'));
+      mockConfigRepo.findOne.mockResolvedValue(mockConfig); // For getUserConfiguration
       mockMailHelper.sendArticleNotification.mockResolvedValue(undefined);
 
-      const result: NotificationResult = await service.processNewArticle(mockArticle);
+      const result: NotificationResult = await service.notifyUsersForArticle(mockArticle);
 
       expect(result.totalNotificationsSent).toBe(0);
       expect(result.totalEmailsSent).toBe(1); // Email should still be sent
@@ -188,12 +203,11 @@ describe('NotificationOrchestrationService', () => {
     });
 
     it('should handle email sending failure gracefully', async () => {
-      mockConfigRepo.find.mockResolvedValue([mockConfig]);
       mockMatchingService.matchArticle.mockResolvedValue(mockMatchResult);
       mockNotificationRepo.save.mockResolvedValue({});
       mockMailHelper.sendArticleNotification.mockRejectedValue(new Error('Email error'));
 
-      const result: NotificationResult = await service.processNewArticle(mockArticle);
+      const result: NotificationResult = await service.notifyUsersForArticle(mockArticle);
 
       expect(result.totalNotificationsSent).toBe(1);
       expect(result.totalEmailsSent).toBe(0);
@@ -207,11 +221,17 @@ describe('NotificationOrchestrationService', () => {
         emailNotificationsEnabled: false
       };
 
-      mockConfigRepo.find.mockResolvedValue([configWithEmailDisabled]);
+      const queryBuilder = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([configWithEmailDisabled])
+      };
+      mockConfigRepo.createQueryBuilder.mockReturnValue(queryBuilder);
+      
       mockMatchingService.matchArticle.mockResolvedValue(mockMatchResult);
       mockNotificationRepo.save.mockResolvedValue({});
+      mockConfigRepo.findOne.mockResolvedValue(configWithEmailDisabled); // For getUserConfiguration
 
-      const result: NotificationResult = await service.processNewArticle(mockArticle);
+      const result: NotificationResult = await service.notifyUsersForArticle(mockArticle);
 
       expect(result.totalNotificationsSent).toBe(1);
       expect(result.totalEmailsSent).toBe(0);
@@ -219,56 +239,24 @@ describe('NotificationOrchestrationService', () => {
       expect(result.userNotifications[0].emailSent).toBe(false);
       expect(mockMailHelper.sendArticleNotification).not.toHaveBeenCalled();
     });
-  });
 
-  describe('processMultipleArticles', () => {
-    const articles = [mockArticle, { ...mockArticle, articleID: 2, articleTitle: 'Second Article' }];
+    it('should handle articles without category', async () => {
+      const articleWithoutCategory = {
+        ...mockArticle,
+        category: undefined
+      } as any;
 
-    it('should process multiple articles efficiently', async () => {
-      mockConfigRepo.find.mockResolvedValue([mockConfig]);
-      mockMatchingService.matchArticle.mockResolvedValue(mockMatchResult);
-      mockNotificationRepo.save.mockResolvedValue({});
-      mockMailHelper.sendArticleNotification.mockResolvedValue(undefined);
+      const result: NotificationResult = await service.notifyUsersForArticle(articleWithoutCategory);
 
-      const results = await service.processMultipleArticles(articles);
-
-      expect(results).toHaveLength(2);
-      expect(results[0].totalNotificationsSent).toBe(1);
-      expect(results[1].totalNotificationsSent).toBe(1);
-      expect(mockMatchingService.matchArticle).toHaveBeenCalledTimes(4); // 2 articles × 2 calls per article
-    });
-
-    it('should handle empty articles array', async () => {
-      const results = await service.processMultipleArticles([]);
-      expect(results).toHaveLength(0);
-    });
-  });
-
-  describe('getNotificationStats', () => {
-    it('should return notification statistics', async () => {
-      const mockStats = {
-        totalSent: 100,
-        totalUsers: 25,
-        averageMatchScore: 67.5
-      };
-
-      // Mock the stats calculation based on the actual implementation
-      mockNotificationRepo.find.mockResolvedValue([
-        { user: { userID: 1 } },
-        { user: { userID: 2 } },
-        { user: { userID: 1 } }
-      ]);
-      
-      const stats = await service.getNotificationStats();
-
-      expect(stats.totalNotifications).toBeGreaterThanOrEqual(0);
-      expect(stats.totalUsers).toBeGreaterThanOrEqual(0);
+      expect(result.totalNotificationsSent).toBe(0);
+      expect(result.totalEmailsSent).toBe(0);
+      expect(result.userNotifications).toHaveLength(0);
     });
   });
 
   describe('edge cases', () => {
     it('should handle null article gracefully', async () => {
-      const result = await service.processNewArticle(null as any);
+      const result = await service.notifyUsersForArticle(null as any);
 
       expect(result.totalNotificationsSent).toBe(0);
       expect(result.totalEmailsSent).toBe(0);
@@ -276,9 +264,13 @@ describe('NotificationOrchestrationService', () => {
     });
 
     it('should handle database connection errors', async () => {
-      mockConfigRepo.find.mockRejectedValue(new Error('Database connection failed'));
+      const queryBuilder = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockRejectedValue(new Error('Database connection failed'))
+      };
+      mockConfigRepo.createQueryBuilder.mockReturnValue(queryBuilder);
 
-      const result = await service.processNewArticle(mockArticle);
+      const result = await service.notifyUsersForArticle(mockArticle);
 
       expect(result.totalNotificationsSent).toBe(0);
       expect(result.totalEmailsSent).toBe(0);
@@ -288,10 +280,10 @@ describe('NotificationOrchestrationService', () => {
       mockConfigRepo.find.mockResolvedValue([mockConfig]);
       mockMatchingService.matchArticle.mockRejectedValue(new Error('Matching service error'));
 
-      const result = await service.processNewArticle(mockArticle);
+      const result = await service.notifyUsersForArticle(mockArticle);
 
-      expect(result.userNotifications[0].notificationSent).toBe(false);
-      expect(result.userNotifications[0].emailSent).toBe(false);
+      expect(result.totalNotificationsSent).toBe(0);
+      expect(result.totalEmailsSent).toBe(0);
     });
 
     it('should handle multiple users with different match scores', async () => {
@@ -301,19 +293,57 @@ describe('NotificationOrchestrationService', () => {
       const highMatchResult = { ...mockMatchResult, score: 85 };
       const lowMatchResult = { ...mockMatchResult, score: 35 };
 
-      mockConfigRepo.find.mockResolvedValue([mockConfig, config2]);
+      // Set up query builder to return both configs
+      const queryBuilder = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([mockConfig, config2])
+      };
+      mockConfigRepo.createQueryBuilder.mockReturnValue(queryBuilder);
+
       mockMatchingService.matchArticle
         .mockResolvedValueOnce(highMatchResult)
         .mockResolvedValueOnce(lowMatchResult);
       mockNotificationRepo.save.mockResolvedValue({});
+      mockConfigRepo.findOne
+        .mockResolvedValueOnce(mockConfig) // For first getUserConfiguration call
+        .mockResolvedValueOnce(config2); // For second getUserConfiguration call
       mockMailHelper.sendArticleNotification.mockResolvedValue(undefined);
 
-      const result = await service.processNewArticle(mockArticle);
+      const result = await service.notifyUsersForArticle(mockArticle);
 
       expect(result.totalNotificationsSent).toBe(2);
+      expect(result.totalEmailsSent).toBe(2);
       expect(result.userNotifications).toHaveLength(2);
       expect(result.userNotifications[0].matchScore).toBe(85);
       expect(result.userNotifications[1].matchScore).toBe(35);
+    });
+
+    it('should handle users without valid email addresses', async () => {
+      const userWithInvalidEmail = {
+        ...mockUser,
+        email: 'invalid-email'
+      };
+      const configWithInvalidEmail = {
+        ...mockConfig,
+        user: userWithInvalidEmail
+      };
+
+      // Set up query builder to return config with invalid email
+      const queryBuilder = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([configWithInvalidEmail])
+      };
+      mockConfigRepo.createQueryBuilder.mockReturnValue(queryBuilder);
+
+      mockMatchingService.matchArticle.mockResolvedValue(mockMatchResult);
+      mockNotificationRepo.save.mockResolvedValue({});
+      mockConfigRepo.findOne.mockResolvedValue(configWithInvalidEmail);
+
+      const result = await service.notifyUsersForArticle(mockArticle);
+
+      expect(result.totalNotificationsSent).toBe(1);
+      expect(result.totalEmailsSent).toBe(0); // Should be 0 due to invalid email
+      expect(result.userNotifications[0].emailSent).toBe(false);
     });
   });
 });
