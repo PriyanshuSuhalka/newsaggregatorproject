@@ -72,7 +72,7 @@ async function handleLogin() {
 
     if (currentUserRole === "admin") {
       console.log("Admin login successful");
-      await showAdminMenu();
+      await showAdminMenu(email);
       return;
     } else {
       console.log("User login successful");

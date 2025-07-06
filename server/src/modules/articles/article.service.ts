@@ -5,6 +5,7 @@ import { Article } from "./article.entity";
 import { CreateArticleDto } from "./dto/create-article.dto";
 import { Category } from "@modules/categories/category.entity";
 import { ExternalAPI } from "@modules/externalapi/external-api.entity";
+import { User } from "@modules/users/user.entity";
 
 export interface SearchOptions {
   keyword: string;
@@ -22,11 +23,19 @@ export class ArticleService {
     private categoryRepo: Repository<Category>,
 
     @InjectRepository(ExternalAPI)
-    private externalRepo: Repository<ExternalAPI>
+    private externalRepo: Repository<ExternalAPI>,
+
+    @InjectRepository(User)
+    private userRepo: Repository<User>
   ) {}
 
   findAll() {
-    return this.articleRepo.find();
+    return this.articleRepo.find({
+      where: { 
+        isHidden: false,
+        category: { isHidden: false }
+      }
+    });
   }
 
   async create(dto: CreateArticleDto) {
@@ -53,7 +62,10 @@ export class ArticleService {
   }
 
   async getArticlesByDateRange(start?: string, end?: string) {
-    const where: any = {};
+    const where: any = {
+      isHidden: false,
+      category: { isHidden: false }
+    };
 
     if (start && end) {
       where.publishDate = Between(new Date(start), new Date(end));
@@ -67,8 +79,16 @@ export class ArticleService {
   async searchByKeyword(keyword: string): Promise<Article[]> {
     return this.articleRepo.find({
       where: [
-        { articleTitle: ILike(`%${keyword}%`) },
-        { articleContent: ILike(`%${keyword}%`) },
+        { 
+          articleTitle: ILike(`%${keyword}%`),
+          isHidden: false,
+          category: { isHidden: false }
+        },
+        { 
+          articleContent: ILike(`%${keyword}%`),
+          isHidden: false,
+          category: { isHidden: false }
+        },
       ],
       order: { publishDate: "DESC" },
     });
@@ -81,6 +101,9 @@ export class ArticleService {
     const query = this.articleRepo
       .createQueryBuilder("article")
       .leftJoinAndSelect("article.category", "category");
+
+    // Apply content filtering
+    this.applyContentFilter(query);
 
     if (start && end) {
       query.andWhere("article.publishDate BETWEEN :start AND :end", {
@@ -109,6 +132,9 @@ export class ArticleService {
       .leftJoinAndSelect("article.category", "category")
       .leftJoinAndSelect("article.externalAPI", "externalAPI");
 
+    // Apply content filtering
+    this.applyContentFilter(query);
+
     // Add keyword search conditions (title and content)
     query.andWhere(
       "(LOWER(article.articleTitle) LIKE LOWER(:keyword) OR LOWER(article.articleContent) LIKE LOWER(:keyword))",
@@ -119,12 +145,12 @@ export class ArticleService {
     if (start && end) {
       query.andWhere("article.publishDate BETWEEN :start AND :end", {
         start: new Date(start),
-        end: new Date(end)
+        end: new Date(end),
       });
     }
 
     // Always sort by date (newest first)
-    query.orderBy("article.publishDate", 'DESC');
+    query.orderBy("article.publishDate", "DESC");
 
     return await query.getMany();
   }
@@ -141,11 +167,51 @@ export class ArticleService {
       .createQueryBuilder("article")
       .select("DISTINCT article.articleTitle")
       .where("LOWER(article.articleTitle) LIKE LOWER(:keyword)", {
-        keyword: `%${partialKeyword}%`
+        keyword: `%${partialKeyword}%`,
       })
       .limit(10)
       .getRawMany();
 
-    return results.map(r => r.article_articleTitle);
+    return results.map((r) => r.article_articleTitle);
+  }
+
+  // Add content filtering to existing methods
+  private applyContentFilter(query: any) {
+    // Filter out hidden articles
+    query.andWhere("article.isHidden = :isHidden", { isHidden: false });
+
+    // Filter out articles from hidden categories
+    query.andWhere("category.isHidden = :categoryHidden", { categoryHidden: false });
+
+    return query;
+  }
+
+  // Admin methods for hiding/unhiding articles
+  async hideArticle(articleId: number, adminId: number): Promise<void> {
+    const admin = await this.userRepo.findOne({ where: { userID: adminId } });
+
+    if (!admin || admin.role !== 'admin') {
+      throw new Error('Only admins can hide articles');
+    }
+
+    await this.articleRepo.update(articleId, {
+      isHidden: true,
+      hiddenBy: admin,
+      hiddenAt: new Date(),
+    });
+  }
+
+  async unhideArticle(articleId: number, adminId: number): Promise<void> {
+    const admin = await this.userRepo.findOne({ where: { userID: adminId } });
+
+    if (!admin || admin.role !== 'admin') {
+      throw new Error('Only admins can unhide articles');
+    }
+
+    await this.articleRepo.update(articleId, {
+      isHidden: false,
+      hiddenBy: undefined,
+      hiddenAt: undefined,
+    });
   }
 }

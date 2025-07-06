@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, BadRequestException, Param } from '@nestjs/common';
 import { ArticleService } from './article.service';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { ApiTags } from '@nestjs/swagger';
@@ -44,5 +44,36 @@ export class ArticleController {
       return [];
     }
     return this.articleService.getSearchSuggestions(query);
+  }
+}
+
+@Controller('admin/articles')
+export class AdminArticleController {
+  constructor(private readonly articleService: ArticleService) {}
+
+  @Post(':id/hide')
+  async hideArticle(
+    @Param('id') articleId: number,
+    @Body('adminId') adminId: number,
+  ) {
+    try {
+      await this.articleService.hideArticle(articleId, adminId);
+      return { success: true, message: 'Article hidden successfully' };
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  @Post(':id/unhide')
+  async unhideArticle(
+    @Param('id') articleId: number,
+    @Body('adminId') adminId: number,
+  ) {
+    try {
+      await this.articleService.unhideArticle(articleId, adminId);
+      return { success: true, message: 'Article unhidden successfully' };
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
   }
 }
