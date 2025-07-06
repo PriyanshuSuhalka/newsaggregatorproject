@@ -7,11 +7,11 @@ import { User } from "@modules/users/user.entity";
 export class Article {
   @PrimaryGeneratedColumn() articleID!: number;
 
-  @Column() articleTitle!: string;
-  @Column() articleContent!: string;
+  @Column({ length: 1000 }) articleTitle!: string;
+  @Column('longtext') articleContent!: string;
 
-  @Column() source!: string;
-  @Column({ unique: true })
+  @Column({ length: 500 }) source!: string;
+  @Column({ length: 500, nullable: true })
   URL!: string;
 
   @Column() publishDate!: Date;

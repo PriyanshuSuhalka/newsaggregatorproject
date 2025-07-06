@@ -33,17 +33,28 @@ export class TheNewsApiAdapter {
     const categoryNames = categories.map((c) => c.categoryName.toLowerCase());
 
     return res.data.data.map((article: any) => {
-      const combinedText = `${article.title} ${article.content || ''}`.toLowerCase();
-      const matchedCategory =
-        categoryNames.find((cat) => combinedText.includes(cat)) || 'Unknown';
+      // TheNewsApi doesn't provide full content, use description + snippet
+      const content = `${article.description || ''} ${article.snippet || ''}`.trim();
+      const combinedText = `${article.title} ${content}`.toLowerCase();
+      
+      // Try to match against TheNewsApi's own categories first, then fall back to keyword matching
+      let matchedCategory = 'Unknown';
+      if (article.categories && article.categories.length > 0) {
+        const apiCategory = article.categories[0].toLowerCase();
+        matchedCategory = categoryNames.find((cat) => cat === apiCategory) || 
+                          categoryNames.find((cat) => combinedText.includes(cat)) || 
+                          'Unknown';
+      } else {
+        matchedCategory = categoryNames.find((cat) => combinedText.includes(cat)) || 'Unknown';
+      }
 
       return {
         title: article.title || "",
-        content: article.content || "",
+        content: content,
         url: article.url || "",
         source: article.source || "",
         category: matchedCategory,
-        publishedAt: article.published ? new Date(article.published) : new Date(),
+        publishedAt: article.published_at ? new Date(article.published_at) : new Date(),
       };
     });
   }
