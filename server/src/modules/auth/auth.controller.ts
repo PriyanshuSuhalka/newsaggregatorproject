@@ -35,4 +35,13 @@ export class AuthController {
   status(@Query("email") email: string) {
     return { loggedIn: this.authService.isLoggedIn(email) };
   }
+
+  @Get("user")
+  async getUser(@Query("email") email: string) {
+    const user = await this.userRepository.findOne({ where: { email } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+    return { userID: user.userID, email: user.email, name: user.name, role: user.role };
+  }
 }

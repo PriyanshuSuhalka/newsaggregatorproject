@@ -1,11 +1,9 @@
-// user-menu.ts
 import axios from "axios";
 import inquirer from "inquirer";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import minMax from "dayjs/plugin/minMax";
 
-// Enable plugins for dayjs
 dayjs.extend(relativeTime);
 dayjs.extend(minMax);
 
@@ -78,11 +76,9 @@ async function handleSearch(userEmail: string) {
       validate: (val) => val.trim() !== "" || "Keyword cannot be empty",
     });
 
-    // Ask for search options
     const searchOptions = await getSearchOptions();
 
     try {
-      // Build search parameters
       const searchParams: any = { keyword };
       
       if (searchOptions.dateFilter) {
@@ -245,18 +241,19 @@ async function postSearchActions(articles: any[]) {
   console.log("\nWhat would you like to do?");
   console.log("1. Save an Article");
   console.log("2. Like/Dislike an Article");
-  console.log("3. New Search");
-  console.log("4. Back to Main Menu");
-  console.log("5. Logout");
+  console.log("3. Report an Article");
+  console.log("4. New Search");
+  console.log("5. Back to Main Menu");
+  console.log("6. Logout");
 
   const { action } = await inquirer.prompt({
     type: 'input',
     name: 'action',
-    message: 'Enter your choice (1-5):',
+    message: 'Enter your choice (1-6):',
     validate: (input) => {
       const num = parseInt(input);
-      if (isNaN(num) || num < 1 || num > 5) {
-        return 'Please enter a number between 1 and 5.';
+      if (isNaN(num) || num < 1 || num > 6) {
+        return 'Please enter a number between 1 and 6.';
       }
       return true;
     }
@@ -270,11 +267,14 @@ async function postSearchActions(articles: any[]) {
       await handleLikeDislikeArticle(articles);
       break;
     case '3':
-      // Will return to search function
+      await handleReportArticle(articles);
       break;
     case '4':
-      return;
+      // Will return to search function
+      break;
     case '5':
+      return;
+    case '6':
       console.log("Logging out...");
       process.exit(0);
   }
@@ -406,7 +406,7 @@ async function displayHeadlines(title: string, articles: any[]) {
     
     console.log(`${articleNum}. ${article.articleTitle}`);
     
-    // Truncate content intelligently - stop at sentence boundary if possible
+    // Truncate content, stop at sentence boundary if possible
     let truncatedContent = article.articleContent;
     if (truncatedContent.length > 180) {
       const truncated = truncatedContent.substring(0, 180);
@@ -418,7 +418,7 @@ async function displayHeadlines(title: string, articles: any[]) {
       }
     }
     
-    console.log(`     � ${truncatedContent}`);
+    console.log(`       ${truncatedContent}`);
     console.log(`     Source: ${article.source || 'Unknown'}`);
     
     // Enhanced date display
@@ -456,20 +456,21 @@ async function postHeadlinesActions(articles: any[]) {
   console.log("What would you like to do next?");
   console.log("1. Save an Article to Your Collection");
   console.log("2. Like/Dislike an Article");
-  console.log("3. Search for Specific Articles");
-  console.log("4. View Article Statistics");
-  console.log("5. Back to Headlines Menu");
-  console.log("6. Return to Main Menu");
-  console.log("7. Logout");
+  console.log("3. Report an Article");
+  console.log("4. Search for Specific Articles");
+  console.log("5. View Article Statistics");
+  console.log("6. Back to Headlines Menu");
+  console.log("7. Return to Main Menu");
+  console.log("8. Logout");
 
   const { action } = await inquirer.prompt({
     type: 'input',
     name: 'action',
-    message: 'Enter your choice (1-7):',
+    message: 'Enter your choice (1-8):',
     validate: (input) => {
       const num = parseInt(input);
-      if (isNaN(num) || num < 1 || num > 7) {
-        return 'Please enter a number between 1 and 7.';
+      if (isNaN(num) || num < 1 || num > 8) {
+        return 'Please enter a number between 1 and 8.';
       }
       return true;
     }
@@ -487,20 +488,25 @@ async function postHeadlinesActions(articles: any[]) {
       await postHeadlinesActions(articles);
       break;
     case '3':
+      await handleReportArticle(articles);
+      // After reporting, show actions again
+      await postHeadlinesActions(articles);
+      break;
+    case '4':
       console.log("Redirecting to search functionality...\n");
       // This will exit the headlines flow and return to main menu where user can select search
       return;
-    case '4':
+    case '5':
       await showArticleStats(articles);
       await postHeadlinesActions(articles);
       break;
-    case '5':
+    case '6':
       // Returns to headlines submenu
       return;
-    case '6':
+    case '7':
       // Exit completely to main menu
       return;
-    case '7':
+    case '8':
       console.log("Thank you for using the News Application. Goodbye!");
       process.exit(0);
   }
@@ -730,7 +736,7 @@ async function viewNotifications(userID: number) {
       }
     }
 
-    // Simple continuation prompt
+    // Continuation prompt
     await inquirer.prompt({
       type: "input",
       name: "continue",
@@ -739,74 +745,6 @@ async function viewNotifications(userID: number) {
 
   } catch (error: any) {
     console.error("Failed to fetch notifications:", error.response?.data?.message || error.message);
-  }
-}
-
-async function markSpecificNotificationAsRead(userID: number, unreadNotifications: any[]) {
-  console.log("\nSelect notification to mark as read:");
-  unreadNotifications.forEach((notification: any, index: number) => {
-    const shortMessage = notification.message.substring(0, 60) + (notification.message.length > 60 ? '...' : '');
-    console.log(`${index + 1}. ${shortMessage}`);
-  });
-
-  const { notificationChoice } = await inquirer.prompt({
-    type: "input",
-    name: "notificationChoice",
-    message: `Enter your choice (1-${unreadNotifications.length}):`,
-    validate: (input) => {
-      const num = parseInt(input);
-      if (isNaN(num) || num < 1 || num > unreadNotifications.length) {
-        return `Please enter a number between 1 and ${unreadNotifications.length}.`;
-      }
-      return true;
-    }
-  });
-
-  const selectedNotification = unreadNotifications[parseInt(notificationChoice) - 1];
-  const notificationId = selectedNotification.id;
-
-  try {
-    await axios.post(`${BASE_URL}/notifications/${notificationId}/read`, null, {
-      params: { userId: userID },
-    });
-    console.log("Notification marked as read!");
-  } catch (err: any) {
-    console.error("Failed to mark notification as read:", err.response?.data?.message || err.message);
-  }
-}
-
-async function markAllNotificationsAsRead(userID: number, unreadNotifications: any[]) {
-  console.log(`\nMark all ${unreadNotifications.length} notifications as read?`);
-  console.log("1. Yes");
-  console.log("2. No");
-  
-  const { confirm } = await inquirer.prompt({
-    type: "input",
-    name: "confirm",
-    message: "Enter your choice (1-2):",
-    validate: (input) => {
-      const num = parseInt(input);
-      if (isNaN(num) || num < 1 || num > 2) {
-        return 'Please enter 1 or 2.';
-      }
-      return true;
-    }
-  });
-
-  if (confirm === '2') {
-    console.log("Cancelled.");
-    return;
-  }
-
-  try {
-    for (const notification of unreadNotifications) {
-      await axios.post(`${BASE_URL}/notifications/${notification.id}/read`, null, {
-        params: { userId: userID },
-      });
-    }
-    console.log(`All ${unreadNotifications.length} notifications marked as read!`);
-  } catch (err: any) {
-    console.error("Failed to mark notifications as read:", err.response?.data?.message || err.message);
   }
 }
 
@@ -1262,5 +1200,68 @@ async function handleLikeDislikeArticle(articles: any[]) {
     } else {
       console.error('Error updating vote:', error.response?.data?.message || error.message);
     }
+  }
+}
+
+async function handleReportArticle(articles: any[]) {
+  if (articles.length === 0) {
+    console.log("No articles available to report.");
+    return;
+  }
+
+  console.log("\nReport an Article");
+  console.log("=".repeat(20));
+  console.log("Select an article to report:");
+  
+  articles.forEach((article: any, index: number) => {
+    const title = article.articleTitle.length > 60 
+      ? article.articleTitle.substring(0, 57) + '...'
+      : article.articleTitle;
+    console.log(`${index + 1}. ${title}`);
+  });
+
+  const { articleChoice } = await inquirer.prompt({
+    type: 'input',
+    name: 'articleChoice',
+    message: `Enter article number (1-${articles.length}):`,
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > articles.length) {
+        return `Please enter a number between 1 and ${articles.length}.`;
+      }
+      return true;
+    }
+  });
+
+  const selectedArticle = articles[parseInt(articleChoice) - 1];
+  
+  console.log(`\nReporting: "${selectedArticle.articleTitle}"`);
+  console.log("Confirm report:");
+  console.log("1. Yes, report this article");
+  console.log("2. Cancel");
+
+  const { confirm } = await inquirer.prompt({
+    type: 'input',
+    name: 'confirm',
+    message: 'Enter your choice (1-2):',
+    validate: (input) => ['1', '2'].includes(input) || 'Please enter 1 or 2.'
+  });
+
+  if (confirm === '1') {
+    try {
+      const response = await axios.post(`${BASE_URL}/articles/${selectedArticle.articleID}/report`, {
+        userId: userData.userID
+      });
+
+      if (response.data.success) {
+        console.log('\n✓ Article reported successfully. Admin will review it.');
+      } else {
+        console.log('\n✗ Failed to report article:', response.data.message);
+      }
+    } catch (error: any) {
+      console.error('\n✗ Error reporting article:', error.response?.data?.message || error.message);
+    }
+  } else {
+    console.log('\nReport cancelled.');
   }
 }
