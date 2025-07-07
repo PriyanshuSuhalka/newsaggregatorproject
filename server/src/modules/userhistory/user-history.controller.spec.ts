@@ -1,0 +1,158 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { UserHistoryController } from './user-history.controller';
+import { UserHistoryService } from './user-history.service';
+import { ArticleService } from '../articles/article.service';
+import { User } from '../users/user.entity';
+import { Article } from '../articles/article.entity';
+import { UserHistory } from './user-history.entity';
+import { Repository } from 'typeorm';
+
+describe('UserHistoryController', () => {
+  let controller: UserHistoryController;
+  let userHistoryService: UserHistoryService;
+  let articleService: ArticleService;
+  let userRepository: Repository<User>;
+
+  const mockUserHistoryService = {
+    addArticleToHistory: jest.fn(),
+    hasUserReadArticle: jest.fn(),
+    getHistoryForUser: jest.fn(),
+  };
+
+  const mockArticleService = {
+    findOne: jest.fn(),
+  };
+
+  const mockUserRepository = {
+    findOne: jest.fn(),
+    save: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [UserHistoryController],
+      providers: [
+        {
+          provide: UserHistoryService,
+          useValue: mockUserHistoryService,
+        },
+        {
+          provide: ArticleService,
+          useValue: mockArticleService,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: mockUserRepository,
+        },
+      ],
+    }).compile();
+
+    controller = module.get<UserHistoryController>(UserHistoryController);
+    userHistoryService = module.get<UserHistoryService>(UserHistoryService);
+    articleService = module.get<ArticleService>(ArticleService);
+    userRepository = module.get<Repository<User>>(getRepositoryToken(User));
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  describe('addArticleToHistory', () => {
+    it('should successfully add new article to history', async () => {
+      // Arrange
+      const articleId = 1;
+      const userId = 1;
+      const mockUser = new User();
+      mockUser.userID = userId;
+
+      const mockArticle = new Article();
+      mockArticle.articleID = articleId;
+      mockArticle.articleTitle = 'Test Article';
+
+      const mockHistoryEntry = new UserHistory();
+      mockHistoryEntry.id = 1;
+      mockHistoryEntry.user = mockUser;
+      mockHistoryEntry.article = mockArticle;
+
+      mockArticleService.findOne.mockResolvedValue(mockArticle);
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
+      mockUserHistoryService.hasUserReadArticle.mockResolvedValue(null);
+      mockUserHistoryService.addArticleToHistory.mockResolvedValue(mockHistoryEntry);
+
+      // Act
+      const result = await controller.addArticleToHistory(articleId, userId);
+
+      // Assert
+      expect(mockArticleService.findOne).toHaveBeenCalledWith(articleId);
+      expect(mockUserRepository.findOne).toHaveBeenCalledWith({ where: { userID: userId } });
+      expect(mockUserHistoryService.hasUserReadArticle).toHaveBeenCalledWith(mockUser, mockArticle);
+      expect(mockUserHistoryService.addArticleToHistory).toHaveBeenCalledWith(mockUser, mockArticle);
+      expect(result.message).toBe('Article marked as read successfully');
+    });
+
+    it('should throw error when article is not found', async () => {
+      // Arrange
+      const articleId = 999;
+      const userId = 1;
+
+      mockArticleService.findOne.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(controller.addArticleToHistory(articleId, userId))
+        .rejects.toThrow('Article not found');
+
+      expect(mockArticleService.findOne).toHaveBeenCalledWith(articleId);
+      expect(mockUserHistoryService.addArticleToHistory).not.toHaveBeenCalled();
+    });
+
+    it('should throw error when user is not found', async () => {
+      // Arrange
+      const articleId = 1;
+      const userId = 999;
+      const mockArticle = new Article();
+
+      mockArticleService.findOne.mockResolvedValue(mockArticle);
+      mockUserRepository.findOne.mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(controller.addArticleToHistory(articleId, userId))
+        .rejects.toThrow('User not found');
+
+      expect(mockArticleService.findOne).toHaveBeenCalledWith(articleId);
+      expect(mockUserRepository.findOne).toHaveBeenCalledWith({ where: { userID: userId } });
+      expect(mockUserHistoryService.addArticleToHistory).not.toHaveBeenCalled();
+    });
+
+    it('should handle already read articles', async () => {
+      // Arrange
+      const articleId = 1;
+      const userId = 1;
+      const mockUser = new User();
+      mockUser.userID = userId;
+
+      const mockArticle = new Article();
+      mockArticle.articleID = articleId;
+
+      const existingHistoryEntry = new UserHistory();
+      existingHistoryEntry.id = 1;
+      existingHistoryEntry.user = mockUser;
+      existingHistoryEntry.article = mockArticle;
+
+      mockArticleService.findOne.mockResolvedValue(mockArticle);
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
+      mockUserHistoryService.hasUserReadArticle.mockResolvedValue(existingHistoryEntry);
+
+      // Act
+      const result = await controller.addArticleToHistory(articleId, userId);
+
+      // Assert
+      expect(result.message).toBe('Article already read');
+      expect(mockUserHistoryService.addArticleToHistory).not.toHaveBeenCalled();
+    });
+  });
+});

@@ -5,7 +5,17 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "rootDir": "./",
+    "sourceMap": true,
+    "moduleResolution": "node"
   },
-  "include": ["index.ts"]
+  "include": [
+    "*.ts",
+    "**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

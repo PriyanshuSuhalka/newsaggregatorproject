@@ -4,8 +4,7 @@ import { Article } from '@modules/articles/article.entity';
 
 @Entity()
 export class SavedArticle {
-  @PrimaryGeneratedColumn()
-  savedArticleID!: number;
+  @PrimaryGeneratedColumn() savedArticleID!: number;
 
   @ManyToOne(() => User, user => user.savedArticles)
   user!: User;
