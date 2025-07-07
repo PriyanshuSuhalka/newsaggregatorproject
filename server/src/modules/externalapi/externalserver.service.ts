@@ -33,4 +33,19 @@ export class ExternalServerService {
     await this.externalApiRepo.update(id, { key });
     return this.findOne(id);
   }
+
+  async update(id: number, updateExternalApiDto: UpdateExternalApiDto) {
+    await this.externalApiRepo.update(id, updateExternalApiDto);
+    return this.findOne(id);
+  }
+
+  async updateStatus(id: number, status: number) {
+    await this.externalApiRepo.update(id, { APIStatus: status });
+    return this.findOne(id);
+  }
+
+  async updateLastAccessed(id: number) {
+    await this.externalApiRepo.update(id, { lastAccessed: new Date() });
+    return this.findOne(id);
+  }
 }

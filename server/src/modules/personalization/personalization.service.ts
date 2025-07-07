@@ -29,7 +29,11 @@ export class PersonalizationService {
 
     if (notificationConfig && notificationConfig.keywords) {
       for (const keyword of notificationConfig.keywords) {
-        if (article.articleTitle.includes(keyword) || article.articleContent.includes(keyword)) {
+        const keywordLower = keyword.toLowerCase();
+        const titleLower = article.articleTitle.toLowerCase();
+        const contentLower = article.articleContent.toLowerCase();
+        
+        if (titleLower.includes(keywordLower) || contentLower.includes(keywordLower)) {
           score += 5;
         }
       }

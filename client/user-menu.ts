@@ -209,6 +209,9 @@ async function displaySearchResults(keyword: string, articles: any[], searchOpti
     const article = articles[index];
     console.log(`${index + 1}. ${article.articleTitle}`);
     
+    // Track that user viewed this article for personalization
+    await trackArticleView(article.articleID, userData.userID);
+    
     // Truncate content for better display
     const truncatedContent = article.articleContent.length > 150 
       ? article.articleContent.substring(0, 150) + '...'
@@ -405,6 +408,9 @@ async function displayHeadlines(title: string, articles: any[]) {
     const publishDate = dayjs(article.publishDate);
     
     console.log(`${articleNum}. ${article.articleTitle}`);
+    
+    // Track that user viewed this article for personalization
+    await trackArticleView(article.articleID, userData.userID);
     
     // Truncate content, stop at sentence boundary if possible
     let truncatedContent = article.articleContent;
@@ -750,36 +756,36 @@ async function viewNotifications(userID: number) {
 
 async function configureNotifications(userID: number) {
   try {
-    // Get current config and available categories
-    const res = await axios.get(`${BASE_URL}/notifications/config`, {
-      params: { userId: userID },
-    });
-
-    const { config, availableCategories } = res.data;
-    const currentEnabledIds = config?.enabledCategoryIds || [];
-    const currentKeywords = config?.keywords || [];
-
-    console.log("\n=== Notification Preferences ===");
-    
-    // Show current configuration in a friendly way
-    console.log("\nYour Current Subscriptions:");
-    if (currentEnabledIds.length > 0) {
-      const enabledCategories = availableCategories.filter((cat: any) => 
-        currentEnabledIds.includes(cat.categoryID)
-      );
-      console.log("Categories: " + enabledCategories.map((cat: any) => `"${cat.categoryName}"`).join(", "));
-    } else {
-      console.log("Categories: Not subscribed to any categories");
-    }
-    
-    if (currentKeywords.length > 0) {
-      console.log("Keywords: " + currentKeywords.map((k: string) => `"${k}"`).join(", "));
-    } else {
-      console.log("Keywords: No keywords set");
-    }
-
-    // Main configuration menu
+    // Main configuration menu loop
     while (true) {
+      // Get current config and available categories (refresh each time)
+      const res = await axios.get(`${BASE_URL}/notifications/config`, {
+        params: { userId: userID },
+      });
+
+      const { config, availableCategories } = res.data;
+      const currentEnabledIds = config?.enabledCategoryIds || [];
+      const currentKeywords = config?.keywords || [];
+
+      console.log("\n=== Notification Preferences ===");
+      
+      // Show current configuration in a friendly way
+      console.log("\nYour Current Subscriptions:");
+      if (currentEnabledIds.length > 0) {
+        const enabledCategories = availableCategories.filter((cat: any) => 
+          currentEnabledIds.includes(cat.categoryID)
+        );
+        console.log("Categories: " + enabledCategories.map((cat: any) => `"${cat.categoryName}"`).join(", "));
+      } else {
+        console.log("Categories: Not subscribed to any categories");
+      }
+      
+      if (currentKeywords.length > 0) {
+        console.log("Keywords: " + currentKeywords.map((k: string) => `"${k}"`).join(", "));
+      } else {
+        console.log("Keywords: No keywords set");
+      }
+
       console.log("\n--- What would you like to do? ---");
       console.log("1. Manage Category Subscriptions");
       console.log("2. Manage Keyword Alerts");
@@ -802,10 +808,13 @@ async function configureNotifications(userID: number) {
 
       if (mainChoice === "1") {
         await manageCategorySubscriptions(userID, availableCategories, currentEnabledIds);
+        // Continue loop to refresh the display
       } else if (mainChoice === "2") {
         await manageKeywordAlerts(userID, currentKeywords);
+        // Continue loop to refresh the display
       } else if (mainChoice === "3") {
         await manageEmailSettings(userID, config);
+        // Continue loop to refresh the display
       } else if (mainChoice === "4") {
         console.log("\nAll changes saved! You'll receive notifications based on your preferences.");
         break;
@@ -852,31 +861,37 @@ async function manageCategorySubscriptions(userID: number, availableCategories: 
     }
   });
 
+  if (categoryInput.trim() === '') {
+    console.log("\nNo changes made.");
+    return;
+  }
+
   let selectedCategories = [...currentEnabledIds]; // Start with current selections
 
-  if (categoryInput.trim() !== '') {
-    const toggleNumbers = categoryInput.split(',').map((n: string) => parseInt(n.trim()));
+  const toggleNumbers = categoryInput.split(',').map((n: string) => parseInt(n.trim()));
+  
+  toggleNumbers.forEach((num: number) => {
+    const category = availableCategories[num - 1];
+    const categoryID = category.categoryID;
+    const index = selectedCategories.indexOf(categoryID);
     
-    toggleNumbers.forEach((num: number) => {
-      const categoryID = availableCategories[num - 1].categoryID;
-      const index = selectedCategories.indexOf(categoryID);
-      
-      if (index > -1) {
-        // Remove if already selected
-        selectedCategories.splice(index, 1);
-      } else {
-        // Add if not selected
-        selectedCategories.push(categoryID);
-      }
-    });
-  }
+    if (index > -1) {
+      // Remove if already selected
+      selectedCategories.splice(index, 1);
+      console.log(`✓ Disabled: ${category.categoryName}`);
+    } else {
+      // Add if not selected
+      selectedCategories.push(categoryID);
+      console.log(`✓ Enabled: ${category.categoryName}`);
+    }
+  });
 
   // Update the configuration
   try {
+    console.log("\nUpdating notification preferences...");
     await axios.post(`${BASE_URL}/notifications/config`, {
       userId: userID,
-      enabledCategoryIds: selectedCategories,
-      keywords: [] // Keep existing keywords, just update categories
+      enabledCategoryIds: selectedCategories
     });
 
     const selectedNames = availableCategories
@@ -888,8 +903,10 @@ async function manageCategorySubscriptions(userID: number, availableCategories: 
     } else {
       console.log("\nUnsubscribed from all categories");
     }
+    
+    console.log("✅ Changes saved successfully!");
   } catch (error: any) {
-    console.error("Failed to update categories:", error.response?.data?.message || error.message);
+    console.error("❌ Failed to update categories:", error.response?.data?.message || error.message);
   }
 }
 
@@ -1263,5 +1280,18 @@ async function handleReportArticle(articles: any[]) {
     }
   } else {
     console.log('\nReport cancelled.');
+  }
+}
+
+// Function to track user article views for personalization
+async function trackArticleView(articleId: number, userId: number) {
+  try {
+    await axios.post(`${BASE_URL}/user-history`, {
+      userId: userId,
+      articleId: articleId
+    });
+  } catch (error: any) {
+    // Silently fail - don't disrupt user experience for tracking
+    console.debug('Note: Article view tracking unavailable');
   }
 }
