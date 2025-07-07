@@ -5,6 +5,8 @@ import { ArticleService, SearchOptions } from './article.service';
 import { Article } from './article.entity';
 import { Category } from '@modules/categories/category.entity';
 import { ExternalAPI } from '@modules/externalapi/external-api.entity';
+import { User } from '@modules/users/user.entity';
+import { PersonalizationService } from '../personalization/personalization.service';
 import { CreateArticleDto } from './dto/create-article.dto';
 
 describe('ArticleService', () => {
@@ -12,6 +14,8 @@ describe('ArticleService', () => {
   let articleRepo: Repository<Article>;
   let categoryRepo: Repository<Category>;
   let externalRepo: Repository<ExternalAPI>;
+  let userRepo: Repository<User>;
+  let personalizationService: PersonalizationService;
 
   const mockCategory = {
     categoryID: 1,
@@ -63,6 +67,15 @@ describe('ArticleService', () => {
     findOneBy: jest.fn(),
   };
 
+  const mockUserRepo = {
+    findOneBy: jest.fn(),
+    find: jest.fn(),
+  };
+
+  const mockPersonalizationService = {
+    calculatePersonalizationScore: jest.fn(),
+  };
+
   const mockQueryBuilder = {
     leftJoinAndSelect: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
@@ -90,6 +103,14 @@ describe('ArticleService', () => {
           provide: getRepositoryToken(ExternalAPI),
           useValue: mockExternalRepo,
         },
+        {
+          provide: getRepositoryToken(User),
+          useValue: mockUserRepo,
+        },
+        {
+          provide: PersonalizationService,
+          useValue: mockPersonalizationService,
+        },
       ],
     }).compile();
 
@@ -97,6 +118,8 @@ describe('ArticleService', () => {
     articleRepo = module.get<Repository<Article>>(getRepositoryToken(Article));
     categoryRepo = module.get<Repository<Category>>(getRepositoryToken(Category));
     externalRepo = module.get<Repository<ExternalAPI>>(getRepositoryToken(ExternalAPI));
+    userRepo = module.get<Repository<User>>(getRepositoryToken(User));
+    personalizationService = module.get<PersonalizationService>(PersonalizationService);
   });
 
   beforeEach(() => {
@@ -111,12 +134,25 @@ describe('ArticleService', () => {
   describe('findAll', () => {
     it('should return all articles', async () => {
       const expectedArticles = [mockArticle];
+      const mockUser = { userID: 1, name: 'Test User', email: 'test@example.com' } as User;
+      
       mockArticleRepo.find.mockResolvedValue(expectedArticles);
+      mockPersonalizationService.calculatePersonalizationScore.mockResolvedValue(75);
 
-      const result = await service.findAll();
+      const result = await service.findAll(mockUser);
 
-      expect(result).toEqual(expectedArticles);
-      expect(mockArticleRepo.find).toHaveBeenCalled();
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        ...mockArticle,
+        personalizationScore: 75
+      });
+      expect(mockArticleRepo.find).toHaveBeenCalledWith({
+        where: { 
+          isHidden: false,
+          category: { isHidden: false }
+        }
+      });
+      expect(mockPersonalizationService.calculatePersonalizationScore).toHaveBeenCalledWith(mockArticle, mockUser);
     });
   });
 
@@ -330,7 +366,8 @@ describe('ArticleService', () => {
     it('should handle database errors gracefully', async () => {
       mockArticleRepo.find.mockRejectedValue(new Error('Database connection failed'));
 
-      await expect(service.findAll()).rejects.toThrow('Database connection failed');
+      const mockUser = { userID: 1, name: 'Test User', email: 'test@example.com' } as any;
+      await expect(service.findAll(mockUser)).rejects.toThrow('Database connection failed');
     });
 
     it('should handle query builder errors', async () => {

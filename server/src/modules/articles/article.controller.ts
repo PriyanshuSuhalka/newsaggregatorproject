@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, BadRequestException, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, BadRequestException, Param, Req, UseGuards } from '@nestjs/common';
 import { ArticleService } from './article.service';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { ApiTags } from '@nestjs/swagger';
@@ -15,11 +15,14 @@ export class ArticleController {
 
   @Get()
   async getArticles(
+    @Req() req: any,
     @Query('start') start?: string,
     @Query('end') end?: string,
     @Query('category') category?: string,
   ) {
-    return this.articleService.getArticles(start, end, category);
+    // For now, create a mock user when no authentication is available
+    const mockUser = req.user || { userID: 1, name: 'Test User', email: 'test@example.com' };
+    return this.articleService.findAll(mockUser);
   }
 
   @Get('search')

@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { SavedArticle } from '@modules/savedarticles/saved-article.entity';
 import { Notification } from '@modules/notifications/notification.entity';
+import { UserHistory } from '@modules/userhistory/user-history.entity';
 
 @Entity()
 export class User {
@@ -26,4 +27,7 @@ export class User {
   // Notifications linked to user
   @OneToMany(() => Notification, (n) => n.user, { cascade: true })
   notifications!: Notification[];
+
+  @OneToMany(() => UserHistory, (uh) => uh.user)
+  history!: UserHistory[];
 }

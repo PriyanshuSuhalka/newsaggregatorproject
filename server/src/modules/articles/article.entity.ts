@@ -1,7 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from "typeorm";
 import { Category } from "@modules/categories/category.entity";
 import { ExternalAPI } from "@modules/externalapi/external-api.entity";
 import { User } from "@modules/users/user.entity";
+import { UserHistory } from "@modules/userhistory/user-history.entity";
 
 @Entity()
 export class Article {
@@ -27,4 +28,7 @@ export class Article {
 
   @ManyToOne(() => Category, { eager: true }) category!: Category;
   @ManyToOne(() => ExternalAPI, { eager: true }) externalAPI!: ExternalAPI;
+
+  @OneToMany(() => UserHistory, (uh) => uh.article)
+  history!: UserHistory[];
 }

@@ -22,4 +22,8 @@ export class SavedArticleService {
       relations: ['article'],
     });
   }
+
+  async getSavedArticles(userId: number): Promise<SavedArticle[]> {
+    return this.findByUser(userId);
+  }
 }

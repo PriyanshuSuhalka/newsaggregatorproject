@@ -21,12 +21,14 @@ import { BlockedKeyword } from "@modules/blockedkeywords/blocked-keyword.entity"
 
 import { NotificationConfiguration } from '@modules/notificationconfig/notification-config.entity';
 import { Keyword } from '@modules/keywords/keyword.entity';
+import { UserHistory } from './userhistory/user-history.entity';
 import { ExternalServerController } from "@modules/externalapi/external-server.controller";
 import { ExternalServerService } from "@modules/externalapi/externalserver.service";
 import { UserModule } from "@modules/users/user.module";
 import { ArticleModule } from "@modules/articles/article.module";
 import { CategoryModule } from "@modules/categories/category.module";
 import { SavedArticleModule } from "@modules/savedarticles/saved-article.module";
+import { UserHistoryModule } from "./userhistory/user-history.module";
 
 @Module({
   imports: [
@@ -53,7 +55,8 @@ import { SavedArticleModule } from "@modules/savedarticles/saved-article.module"
         NotificationConfiguration,
         ArticleLike,
         ArticleReport,
-        BlockedKeyword
+        BlockedKeyword,
+        UserHistory
       ],
     }),
 
@@ -70,6 +73,7 @@ import { SavedArticleModule } from "@modules/savedarticles/saved-article.module"
       ArticleLike,
       ArticleReport,
       BlockedKeyword,
+      UserHistory,
     ]),
     AuthModule,
     ScheduleModule.forRoot(),
@@ -82,6 +86,7 @@ import { SavedArticleModule } from "@modules/savedarticles/saved-article.module"
     CategoryModule,
     SavedArticleModule,
     UserModule,
+    UserHistoryModule,
   ],
   controllers: [ExternalServerController],
   providers: [ExternalServerService],
