@@ -63,12 +63,13 @@ describe('UserHistoryController', () => {
   });
 
   describe('addArticleToHistory', () => {
-    it('should successfully add new article to history', async () => {
+    it('should successfully add new article to history and award points', async () => {
       // Arrange
       const articleId = 1;
       const userId = 1;
       const mockUser = new User();
       mockUser.userID = userId;
+      mockUser.points = 50;
 
       const mockArticle = new Article();
       mockArticle.articleID = articleId;
@@ -83,6 +84,7 @@ describe('UserHistoryController', () => {
       mockUserRepository.findOne.mockResolvedValue(mockUser);
       mockUserHistoryService.hasUserReadArticle.mockResolvedValue(null);
       mockUserHistoryService.addArticleToHistory.mockResolvedValue(mockHistoryEntry);
+      mockUserRepository.save.mockResolvedValue({ ...mockUser, points: 60 });
 
       // Act
       const result = await controller.addArticleToHistory(articleId, userId);
@@ -92,7 +94,8 @@ describe('UserHistoryController', () => {
       expect(mockUserRepository.findOne).toHaveBeenCalledWith({ where: { userID: userId } });
       expect(mockUserHistoryService.hasUserReadArticle).toHaveBeenCalledWith(mockUser, mockArticle);
       expect(mockUserHistoryService.addArticleToHistory).toHaveBeenCalledWith(mockUser, mockArticle);
-      expect(result.message).toBe('Article marked as read successfully');
+      expect(result.pointsAwarded).toBe(10);
+      expect(result.totalPoints).toBe(60);
     });
 
     it('should throw error when article is not found', async () => {
@@ -128,12 +131,13 @@ describe('UserHistoryController', () => {
       expect(mockUserHistoryService.addArticleToHistory).not.toHaveBeenCalled();
     });
 
-    it('should handle already read articles', async () => {
+    it('should not award points for already read articles', async () => {
       // Arrange
       const articleId = 1;
       const userId = 1;
       const mockUser = new User();
       mockUser.userID = userId;
+      mockUser.points = 50;
 
       const mockArticle = new Article();
       mockArticle.articleID = articleId;
@@ -152,7 +156,9 @@ describe('UserHistoryController', () => {
 
       // Assert
       expect(result.message).toBe('Article already read');
+      expect(result.pointsAwarded).toBe(0);
       expect(mockUserHistoryService.addArticleToHistory).not.toHaveBeenCalled();
+      expect(mockUserRepository.save).not.toHaveBeenCalled();
     });
   });
 });

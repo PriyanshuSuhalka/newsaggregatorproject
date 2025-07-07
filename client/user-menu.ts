@@ -120,7 +120,10 @@ async function handleSearch(userEmail: string) {
         continue;
       }
 
-      await displaySearchResults(keyword, articles, searchOptions);
+      const result = await displaySearchResults(keyword, articles, searchOptions);
+      if (result === 'newSearch') {
+        continue;
+      }
       break;
 
     } catch (error: any) {
@@ -196,48 +199,143 @@ async function getSearchOptions() {
 }
 
 async function displaySearchResults(keyword: string, articles: any[], searchOptions: any) {
-  console.log(`\nResults for "${keyword}"`);
-  
-  // Display search filters used
-  if (searchOptions.dateFilter) {
-    console.log(`Date range: ${searchOptions.startDate} to ${searchOptions.endDate}`);
-  }
-  console.log(` Found ${articles.length} result(s) (sorted by date)\n`);
+  let currentPage = 1;
+  const articlesPerPage = 10;
+  const totalPages = Math.ceil(articles.length / articlesPerPage);
 
-  // Display articles with better formatting including like/dislike counts
-  for (let index = 0; index < articles.length; index++) {
-    const article = articles[index];
-    console.log(`${index + 1}. ${article.articleTitle}`);
+  while (true) {
+    console.clear();
+    console.log(`\nSearch Results for "${keyword}"`);
     
-    // Track that user viewed this article for personalization
-    await trackArticleView(article.articleID, userData.userID);
-    
-    // Truncate content for better display
-    const truncatedContent = article.articleContent.length > 150 
-      ? article.articleContent.substring(0, 150) + '...'
-      : article.articleContent;
-    
-    console.log(`   ${truncatedContent}`);
-    console.log(`   Source: ${article.source}`);
-    console.log(`   Published: ${dayjs(article.publishDate).format('DD-MMM-YYYY HH:mm')}`);
-    console.log(`   Category: ${article.category?.categoryName || 'Unknown'}`);
-    
-    // Fetch and display like/dislike counts
-    const likeStats = await fetchArticleLikeStats(article.articleID);
-    let voteStatus = '';
-    if (likeStats.userVote === 'LIKE') {
-      voteStatus = ' (You liked this)';
-    } else if (likeStats.userVote === 'DISLIKE') {
-      voteStatus = ' (You disliked this)';
+    // Display search filters used
+    if (searchOptions.dateFilter) {
+      console.log(`Date range: ${searchOptions.startDate} to ${searchOptions.endDate}`);
     }
-    console.log(`   Likes: ${likeStats.likesCount} | Dislikes: ${likeStats.dislikesCount}${voteStatus}`);
-    
-    console.log(`   URL: ${article.URL}`);
-    console.log(`   ID: ${article.articleID}\n`);
-  }
+    console.log(`🔍 ${articles.length} results found • Page ${currentPage} of ${totalPages} (showing 10 per page)\n`);
 
-  // Post-search actions
-  await postSearchActions(articles);
+    // Get articles for current page
+    const startIndex = (currentPage - 1) * articlesPerPage;
+    const endIndex = Math.min(startIndex + articlesPerPage, articles.length);
+    const pageArticles = articles.slice(startIndex, endIndex);
+
+    // Display articles with better formatting including like/dislike counts
+    for (let index = 0; index < pageArticles.length; index++) {
+      const article = pageArticles[index];
+      const articleNum = `${index + 1}`.padStart(2, '0');
+      
+      console.log(`${articleNum}. ${article.articleTitle}`);
+      
+      // Track that user viewed this article for personalization
+      await trackArticleView(article.articleID, userData.userID);
+      
+      // Truncate content for better display
+      const truncatedContent = article.articleContent.length > 150 
+        ? article.articleContent.substring(0, 150) + '...'
+        : article.articleContent;
+      
+      console.log(`       ${truncatedContent}`);
+      console.log(`     Source: ${article.source}`);
+      console.log(`     Published: ${dayjs(article.publishDate).format('DD-MMM-YYYY HH:mm')}`);
+      console.log(`     Category: ${article.category?.categoryName || 'General'}`);
+      
+      // Fetch and display like/dislike counts
+      const likeStats = await fetchArticleLikeStats(article.articleID);
+      let voteStatus = '';
+      if (likeStats.userVote === 'LIKE') {
+        voteStatus = ' (You liked this)';
+      } else if (likeStats.userVote === 'DISLIKE') {
+        voteStatus = ' (You disliked this)';
+      }
+      console.log(`     Likes: ${likeStats.likesCount} | Dislikes: ${likeStats.dislikesCount}${voteStatus}`);
+      
+      console.log(`     URL: ${article.URL}`);
+      console.log(`     ID: ${article.articleID}\n`);
+    }
+
+    // Show article selection menu for search results
+    const action = await showSearchResultsMenu(articles, currentPage, totalPages, pageArticles);
+    
+    if (action.type === 'read' && action.articleId) {
+      await handleReadArticleById(action.articleId, articles);
+    } else if (action.type === 'nextPage' && currentPage < totalPages) {
+      currentPage++;
+    } else if (action.type === 'prevPage' && currentPage > 1) {
+      currentPage--;
+    } else if (action.type === 'back') {
+      break;
+    } else if (action.type === 'actions') {
+      await postSearchActions(pageArticles);
+      break;
+    } else if (action.type === 'newSearch') {
+      return 'newSearch';
+    }
+  }
+}
+
+async function showSearchResultsMenu(articles: any[], currentPage: number, totalPages: number, pageArticles: any[]): Promise<{type: string, articleId?: number}> {
+  console.log("─".repeat(50));
+  console.log("What would you like to do?");
+  console.log("1. Read an article (enter 1-10)");
+  
+  if (currentPage < totalPages) {
+    console.log("2. Next page");
+  }
+  if (currentPage > 1) {
+    console.log("3. Previous page");
+  }
+  
+  console.log("4. More actions (save, like, report, etc.)");
+  console.log("5. New search");
+  console.log("6. Back to main menu");
+
+  const { action } = await inquirer.prompt({
+    type: 'input',
+    name: 'action',
+    message: 'Enter your choice (1-6):',
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > 6) {
+        return 'Please enter a number between 1 and 6.';
+      }
+      return true;
+    }
+  });
+
+  switch (action) {
+    case '1':
+      const { articleNum } = await inquirer.prompt({
+        type: 'input',
+        name: 'articleNum',
+        message: `Enter article number (1-${pageArticles.length}):`,
+        validate: (input) => {
+          const num = parseInt(input);
+          if (isNaN(num) || num < 1 || num > pageArticles.length) {
+            return `Please enter a number between 1 and ${pageArticles.length}.`;
+          }
+          return true;
+        }
+      });
+      const selectedArticle = pageArticles[parseInt(articleNum) - 1];
+      return { type: 'read', articleId: selectedArticle.articleID };
+    case '2':
+      if (currentPage < totalPages) {
+        return { type: 'nextPage' };
+      }
+      return { type: 'invalid' };
+    case '3':
+      if (currentPage > 1) {
+        return { type: 'prevPage' };
+      }
+      return { type: 'invalid' };
+    case '4':
+      return { type: 'actions' };
+    case '5':
+      return { type: 'newSearch' };
+    case '6':
+      return { type: 'back' };
+    default:
+      return { type: 'invalid' };
+  }
 }
 
 async function postSearchActions(articles: any[]) {
@@ -291,26 +389,33 @@ async function handleSaveArticle(articles: any[]) {
 
   console.log("\nSave Article to Your Collection");
   console.log("=".repeat(35));
+  console.log("Select an article to save:");
   
-  const { articleIndex } = await inquirer.prompt({
-    type: 'list',
-    name: 'articleIndex',
-    message: 'Select an article to save:',
-    choices: articles.map((article, index) => {
-      const title = article.articleTitle.length > 60 
-        ? article.articleTitle.substring(0, 57) + '...'
-        : article.articleTitle;
-      const source = article.source ? ` (${article.source})` : '';
-      return {
-        name: `${index + 1}. ${title}${source}`,
-        value: index
-      };
-    }).concat([
-      { name: "Cancel and go back", value: -1 }
-    ])
+  articles.forEach((article, index) => {
+    const title = article.articleTitle.length > 60 
+      ? article.articleTitle.substring(0, 57) + '...'
+      : article.articleTitle;
+    const source = article.source ? ` (${article.source})` : '';
+    console.log(`${index + 1}. ${title}${source}`);
+  });
+  console.log(`${articles.length + 1}. Cancel and go back`);
+  
+  const { articleChoice } = await inquirer.prompt({
+    type: 'input',
+    name: 'articleChoice',
+    message: `Enter your choice (1-${articles.length + 1}):`,
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > articles.length + 1) {
+        return `Please enter a number between 1 and ${articles.length + 1}.`;
+      }
+      return true;
+    }
   });
 
-  if (articleIndex === -1) {
+  const articleIndex = parseInt(articleChoice) - 1;
+
+  if (articleIndex === articles.length) {
     console.log("Save cancelled.");
     return;
   }
@@ -384,99 +489,109 @@ async function fetchHeadlinesToday(userEmail: string) {
 }
 
 async function displayHeadlines(title: string, articles: any[]) {
-  console.log(`\n${title}`);
-  console.log("=".repeat(title.length + 10));
-  console.log(`Found ${articles.length} article(s) • Sorted by publication date (newest first)\n`);
+  let currentPage = 1;
+  const articlesPerPage = 10;
+  const totalPages = Math.ceil(articles.length / articlesPerPage);
 
-  // Group articles by category for better overview
-  const categoryCounts = articles.reduce((acc: any, article: any) => {
-    const cat = article.category?.categoryName || 'Unknown';
-    acc[cat] = (acc[cat] || 0) + 1;
-    return acc;
-  }, {});
+  while (true) {
+    console.clear();
+    console.log(`\n${title}`);
+    console.log("=".repeat(title.length + 10));
+    console.log(`📰 ${articles.length} articles found • Page ${currentPage} of ${totalPages} (showing 10 per page)\n`);
 
-  console.log("Articles by Category:");
-  Object.entries(categoryCounts).forEach(([category, count]) => {
-    console.log(`   ${category}: ${count} article(s)`);
-  });
-  console.log();
+    // Get articles for current page
+    const startIndex = (currentPage - 1) * articlesPerPage;
+    const endIndex = Math.min(startIndex + articlesPerPage, articles.length);
+    const pageArticles = articles.slice(startIndex, endIndex);
 
-  // Display articles with enhanced formatting including like/dislike counts
-  for (let index = 0; index < articles.length; index++) {
-    const article = articles[index];
-    const articleNum = `${index + 1}`.padStart(2, '0');
-    const publishDate = dayjs(article.publishDate);
-    
-    console.log(`${articleNum}. ${article.articleTitle}`);
-    
-    // Track that user viewed this article for personalization
-    await trackArticleView(article.articleID, userData.userID);
-    
-    // Truncate content, stop at sentence boundary if possible
-    let truncatedContent = article.articleContent;
-    if (truncatedContent.length > 180) {
-      const truncated = truncatedContent.substring(0, 180);
-      const lastSentence = truncated.lastIndexOf('. ');
-      if (lastSentence > 120) {
-        truncatedContent = truncated.substring(0, lastSentence + 1);
-      } else {
-        truncatedContent = truncated + '...';
+    // Display articles with enhanced formatting including like/dislike counts
+    for (let index = 0; index < pageArticles.length; index++) {
+      const article = pageArticles[index];
+      const articleNum = `${index + 1}`.padStart(2, '0');
+      const publishDate = dayjs(article.publishDate);
+      
+      console.log(`${articleNum}. ${article.articleTitle}`);
+      
+      // Track that user viewed this article for personalization
+      await trackArticleView(article.articleID, userData.userID);
+      
+      // Truncate content, stop at sentence boundary if possible
+      let truncatedContent = article.articleContent;
+      if (truncatedContent.length > 180) {
+        const truncated = truncatedContent.substring(0, 180);
+        const lastSentence = truncated.lastIndexOf('. ');
+        if (lastSentence > 120) {
+          truncatedContent = truncated.substring(0, lastSentence + 1);
+        } else {
+          truncatedContent = truncated + '...';
+        }
       }
+      
+      console.log(`       ${truncatedContent}`);
+      console.log(`     Source: ${article.source || 'General'}`);
+      
+      // Enhanced date display without time ago
+      const fullDate = publishDate.format('DD-MMM-YYYY HH:mm');
+      console.log(`     Published: ${fullDate}`);
+      
+      console.log(`     Category: ${article.category?.categoryName || 'General'}`);
+      
+      // Fetch and display like/dislike counts
+      const likeStats = await fetchArticleLikeStats(article.articleID);
+      let voteStatus = '';
+      if (likeStats.userVote === 'LIKE') {
+        voteStatus = ' (You liked this)';
+      } else if (likeStats.userVote === 'DISLIKE') {
+        voteStatus = ' (You disliked this)';
+      }
+      console.log(`     Likes: ${likeStats.likesCount} | Dislikes: ${likeStats.dislikesCount}${voteStatus}`);
+      
+      // URL display with length check
+      const url = article.URL || 'No URL available';
+      const displayUrl = url.length > 60 ? url.substring(0, 57) + '...' : url;
+      console.log(`     URL: ${displayUrl}`);
+      
+      console.log(`     ID: ${article.articleID}`);
+      console.log(); // Add spacing between articles
     }
-    
-    console.log(`       ${truncatedContent}`);
-    console.log(`     Source: ${article.source || 'Unknown'}`);
-    
-    // Enhanced date display
-    const timeAgo = publishDate.fromNow();
-    const fullDate = publishDate.format('DD-MMM-YYYY HH:mm');
-    console.log(`     Published: ${fullDate} (${timeAgo})`);
-    
-    console.log(`     Category: ${article.category?.categoryName || 'Uncategorized'}`);
-    
-    // Fetch and display like/dislike counts
-    const likeStats = await fetchArticleLikeStats(article.articleID);
-    let voteStatus = '';
-    if (likeStats.userVote === 'LIKE') {
-      voteStatus = ' (You liked this)';
-    } else if (likeStats.userVote === 'DISLIKE') {
-      voteStatus = ' (You disliked this)';
-    }
-    console.log(`     Likes: ${likeStats.likesCount} | Dislikes: ${likeStats.dislikesCount}${voteStatus}`);
-    
-    // URL display with length check
-    const url = article.URL || 'No URL available';
-    const displayUrl = url.length > 60 ? url.substring(0, 57) + '...' : url;
-    console.log(`     URL: ${displayUrl}`);
-    
-    console.log(`     ID: ${article.articleID}`);
-    console.log(); // Add spacing between articles
-  }
 
-  // Post-headlines actions
-  await postHeadlinesActions(articles);
+    // Show article selection menu
+    const action = await showArticleSelectionMenu(articles, currentPage, totalPages, pageArticles);
+    
+    if (action.type === 'read' && action.articleId) {
+      await handleReadArticleById(action.articleId, articles);
+    } else if (action.type === 'nextPage' && currentPage < totalPages) {
+      currentPage++;
+    } else if (action.type === 'prevPage' && currentPage > 1) {
+      currentPage--;
+    } else if (action.type === 'back') {
+      break;
+    } else if (action.type === 'actions') {
+      await postHeadlinesActions(pageArticles);
+      break;
+    }
+  }
 }
 
 async function postHeadlinesActions(articles: any[]) {
   console.log("─".repeat(50));
   console.log("What would you like to do next?");
-  console.log("1. Save an Article to Your Collection");
-  console.log("2. Like/Dislike an Article");
-  console.log("3. Report an Article");
-  console.log("4. Search for Specific Articles");
-  console.log("5. View Article Statistics");
-  console.log("6. Back to Headlines Menu");
-  console.log("7. Return to Main Menu");
-  console.log("8. Logout");
+  console.log("1. Read Full Article");
+  console.log("2. Save an Article to Your Collection");
+  console.log("3. Like/Dislike an Article");
+  console.log("4. Report an Article");
+  console.log("5. Back to Headlines Menu");
+  console.log("6. Return to Main Menu");
+  console.log("7. Logout");
 
   const { action } = await inquirer.prompt({
     type: 'input',
     name: 'action',
-    message: 'Enter your choice (1-8):',
+    message: 'Enter your choice (1-7):',
     validate: (input) => {
       const num = parseInt(input);
-      if (isNaN(num) || num < 1 || num > 8) {
-        return 'Please enter a number between 1 and 8.';
+      if (isNaN(num) || num < 1 || num > 7) {
+        return 'Please enter a number between 1 and 7.';
       }
       return true;
     }
@@ -484,35 +599,32 @@ async function postHeadlinesActions(articles: any[]) {
 
   switch (action) {
     case '1':
+      await handleReadArticle(articles);
+      // After reading, show actions again
+      await postHeadlinesActions(articles);
+      break;
+    case '2':
       await handleSaveArticle(articles);
       // After saving, show actions again
       await postHeadlinesActions(articles);
       break;
-    case '2':
+    case '3':
       await handleLikeDislikeArticle(articles);
       // After liking/disliking, show actions again
       await postHeadlinesActions(articles);
       break;
-    case '3':
+    case '4':
       await handleReportArticle(articles);
       // After reporting, show actions again
       await postHeadlinesActions(articles);
       break;
-    case '4':
-      console.log("Redirecting to search functionality...\n");
-      // This will exit the headlines flow and return to main menu where user can select search
-      return;
     case '5':
-      await showArticleStats(articles);
-      await postHeadlinesActions(articles);
-      break;
-    case '6':
       // Returns to headlines submenu
       return;
-    case '7':
+    case '6':
       // Exit completely to main menu
       return;
-    case '8':
+    case '7':
       console.log("Thank you for using the News Application. Goodbye!");
       process.exit(0);
   }
@@ -527,7 +639,7 @@ async function showArticleStats(articles: any[]) {
   
   // Category breakdown
   const categories = articles.reduce((acc: any, article: any) => {
-    const cat = article.category?.categoryName || 'Uncategorized';
+    const cat = article.category?.categoryName || 'General';
     acc[cat] = (acc[cat] || 0) + 1;
     return acc;
   }, {});
@@ -542,7 +654,7 @@ async function showArticleStats(articles: any[]) {
   
   // Source breakdown
   const sources = articles.reduce((acc: any, article: any) => {
-    const source = article.source || 'Unknown';
+    const source = article.source || 'General';
     acc[source] = (acc[source] || 0) + 1;
     return acc;
   }, {});
@@ -587,24 +699,51 @@ async function fetchSavedArticles(userName: string, userId: number) {
       return;
     }
 
-    console.log(`\nSaved Articles for ${userName}`);
-    console.log(`Found ${savedArticles.length} saved article(s)\n`);
+    // Extract articles from saved articles data structure
+    const articles = savedArticles.map((entry: any) => entry.article);
+    
+    await displaySavedArticlesPaginated(`Saved Articles for ${userName}`, articles);
+    
+  } catch (error: any) {
+    console.error("Error fetching saved articles:", error.response?.data?.message || error.message);
+  }
+}
+
+async function displaySavedArticlesPaginated(title: string, articles: any[]) {
+  let currentPage = 1;
+  const articlesPerPage = 10;
+  const totalPages = Math.ceil(articles.length / articlesPerPage);
+
+  while (true) {
+    console.clear();
+    console.log(`\n${title}`);
+    console.log("=".repeat(title.length + 10));
+    console.log(`💾 ${articles.length} saved articles • Page ${currentPage} of ${totalPages} (showing 10 per page)\n`);
+
+    // Get articles for current page
+    const startIndex = (currentPage - 1) * articlesPerPage;
+    const endIndex = Math.min(startIndex + articlesPerPage, articles.length);
+    const pageArticles = articles.slice(startIndex, endIndex);
     
     // Display saved articles with like/dislike counts
-    for (let index = 0; index < savedArticles.length; index++) {
-      const entry = savedArticles[index];
-      const article = entry.article;
-      console.log(`${index + 1}. ${article.articleTitle}`);
+    for (let index = 0; index < pageArticles.length; index++) {
+      const article = pageArticles[index];
+      const articleNum = `${index + 1}`.padStart(2, '0');
+      
+      console.log(`${articleNum}. ${article.articleTitle}`);
+      
+      // Track that user viewed this article for personalization
+      await trackArticleView(article.articleID, userData.userID);
       
       // Truncate content for better display
       const truncatedContent = article.articleContent.length > 150 
         ? article.articleContent.substring(0, 150) + '...'
         : article.articleContent;
       
-      console.log(`   Content: ${truncatedContent}`);
-      console.log(`   Source: ${article.source}`);
-      console.log(`   Published: ${dayjs(article.publishDate).format('DD-MMM-YYYY HH:mm')}`);
-      console.log(`   Category: ${article.category?.categoryName || 'Unknown'}`);
+      console.log(`       ${truncatedContent}`);
+      console.log(`     Source: ${article.source}`);
+      console.log(`     Published: ${dayjs(article.publishDate).format('DD-MMM-YYYY HH:mm')}`);
+      console.log(`     Category: ${article.category?.categoryName || 'General'}`);
       
       // Fetch and display like/dislike counts
       const likeStats = await fetchArticleLikeStats(article.articleID);
@@ -614,14 +753,27 @@ async function fetchSavedArticles(userName: string, userId: number) {
       } else if (likeStats.userVote === 'DISLIKE') {
         voteStatus = ' (You disliked this)';
       }
-      console.log(`   Likes: ${likeStats.likesCount} | Dislikes: ${likeStats.dislikesCount}${voteStatus}`);
+      console.log(`     Likes: ${likeStats.likesCount} | Dislikes: ${likeStats.dislikesCount}${voteStatus}`);
       
-      console.log(`   URL: ${article.URL}`);
-      console.log(`   ID: ${article.articleID}\n`);
+      console.log(`     URL: ${article.URL}`);
+      console.log(`     ID: ${article.articleID}\n`);
     }
+
+    // Show article selection menu for saved articles
+    const action = await showArticleSelectionMenu(articles, currentPage, totalPages, pageArticles);
     
-  } catch (error: any) {
-    console.error("Error fetching saved articles:", error.response?.data?.message || error.message);
+    if (action.type === 'read' && action.articleId) {
+      await handleReadArticleById(action.articleId, articles);
+    } else if (action.type === 'nextPage' && currentPage < totalPages) {
+      currentPage++;
+    } else if (action.type === 'prevPage' && currentPage > 1) {
+      currentPage--;
+    } else if (action.type === 'back') {
+      break;
+    } else if (action.type === 'actions') {
+      await postHeadlinesActions(pageArticles);
+      break;
+    }
   }
 }
 
@@ -1283,6 +1435,255 @@ async function handleReportArticle(articles: any[]) {
   }
 }
 
+async function handleReadArticle(articles: any[]) {
+  if (articles.length === 0) {
+    console.log("No articles available to read.");
+    return;
+  }
+
+  console.log("\nRead Full Article");
+  console.log("=".repeat(20));
+  console.log("Select an article to read:");
+  
+  articles.forEach((article, index) => {
+    const title = article.articleTitle.length > 60 
+      ? article.articleTitle.substring(0, 57) + '...'
+      : article.articleTitle;
+    const source = article.source ? ` (${article.source})` : '';
+    const category = article.category?.categoryName ? ` [${article.category.categoryName}]` : '';
+    console.log(`${index + 1}. ${title}${source}${category}`);
+  });
+  console.log(`${articles.length + 1}. Cancel and go back`);
+  
+  const { articleChoice } = await inquirer.prompt({
+    type: 'input',
+    name: 'articleChoice',
+    message: `Enter your choice (1-${articles.length + 1}):`,
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > articles.length + 1) {
+        return `Please enter a number between 1 and ${articles.length + 1}.`;
+      }
+      return true;
+    }
+  });
+
+  const articleIndex = parseInt(articleChoice) - 1;
+
+  if (articleIndex === articles.length) {
+    console.log("Reading cancelled.");
+    return;
+  }
+
+  const selectedArticle = articles[articleIndex];
+  
+  try {
+    // Display the full article
+    await displayFullArticle(selectedArticle);
+    
+    // Mark article as read and award points
+    await markArticleAsRead(selectedArticle.articleID, userData.userID);
+    
+    // Show post-reading options
+    await showPostReadingOptions(selectedArticle);
+    
+  } catch (err: any) {
+    console.error("Error reading article:", err.response?.data?.message || err.message);
+    console.log("Please try again or contact support if the issue persists.\n");
+  }
+}
+
+async function displayFullArticle(article: any) {
+  const publishDate = dayjs(article.publishDate);
+  const fullDate = publishDate.format('DD-MMM-YYYY HH:mm');
+  
+  console.clear();
+  console.log("┌" + "─".repeat(80) + "┐");
+  console.log("│" + " ".repeat(30) + "FULL ARTICLE" + " ".repeat(38) + "│");
+  console.log("└" + "─".repeat(80) + "┘");
+  
+  console.log(`\n📰 ${article.articleTitle}`);
+  console.log("=".repeat(article.articleTitle.length + 4));
+  
+  console.log(`📅 Published: ${fullDate}`);
+  console.log(`📂 Category: ${article.category?.categoryName || 'General'}`);
+  console.log(`📰 Source: ${article.source || 'General'}`);
+  if (article.URL) {
+    console.log(`🔗 URL: ${article.URL}`);
+  }
+  console.log();
+  
+  // Display content with word wrapping
+  const content = article.articleContent || 'No content available.';
+  const wrappedContent = wrapText(content, 80);
+  console.log(wrappedContent);
+  
+  console.log("\n" + "─".repeat(80));
+}
+
+function wrapText(text: string, maxWidth: number): string {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+  
+  for (const word of words) {
+    if ((currentLine + word).length > maxWidth) {
+      if (currentLine) {
+        lines.push(currentLine.trim());
+        currentLine = word + ' ';
+      } else {
+        // Word is longer than maxWidth, split it
+        lines.push(word);
+        currentLine = '';
+      }
+    } else {
+      currentLine += word + ' ';
+    }
+  }
+  
+  if (currentLine) {
+    lines.push(currentLine.trim());
+  }
+  
+  return lines.join('\n');
+}
+
+async function markArticleAsRead(articleId: number, userId: number) {
+  try {
+    // Call the user history endpoint to mark as read
+    const response = await axios.post(`${BASE_URL}/user-history/read/${articleId}`, {
+      userId: userId
+    });
+    
+  } catch (error: any) {
+    if (error.response?.status === 409) {
+      // Article already read - silent handling
+    } else {
+      console.error("❌ Failed to mark article as read:", error.response?.data?.message || error.message);
+    }
+  }
+}
+
+async function showPostReadingOptions(article: any) {
+  console.log("\n📋 What would you like to do with this article?");
+  console.log("1. Save to My Collection");
+  console.log("2. Like this Article");
+  console.log("3. Dislike this Article");
+  console.log("4. Share Article URL");
+  console.log("5. Report Article");
+  console.log("6. Read Another Article");
+  console.log("7. Back to Headlines");
+
+  const { action } = await inquirer.prompt({
+    type: 'input',
+    name: 'action',
+    message: 'Enter your choice (1-7):',
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > 7) {
+        return 'Please enter a number between 1 and 7.';
+      }
+      return true;
+    }
+  });
+
+  switch (action) {
+    case '1':
+      await handleSaveSpecificArticle(article);
+      break;
+    case '2':
+      await handleLikeSpecificArticle(article, true);
+      break;
+    case '3':
+      await handleLikeSpecificArticle(article, false);
+      break;
+    case '4':
+      console.log(`\n🔗 Article URL: ${article.URL || 'No URL available'}`);
+      console.log("You can copy and share this URL.");
+      break;
+    case '5':
+      await handleReportSpecificArticle(article);
+      break;
+    case '6':
+    case '7':
+      // Return to previous menu
+      return;
+  }
+}
+
+async function handleSaveSpecificArticle(article: any) {
+  try {
+    console.log(`\nSaving "${article.articleTitle}"...`);
+    
+    await axios.post(`${BASE_URL}/saved-articles`, {
+      userId: userData.userID,
+      articleId: article.articleID,
+    });
+    
+    console.log(`✅ Article saved successfully!`);
+    console.log(`"${article.articleTitle}" has been added to your collection.`);
+    
+  } catch (err: any) {
+    if (err.response?.status === 409) {
+      console.log(`ℹ️  Article already saved!`);
+      console.log(`"${article.articleTitle}" is already in your collection.`);
+    } else {
+      console.error("❌ Save failed:", err.response?.data?.message || err.message);
+    }
+  }
+}
+
+async function handleLikeSpecificArticle(article: any, isLike: boolean) {
+  try {
+    const action = isLike ? 'like' : 'dislike';
+    console.log(`\n${isLike ? '👍' : '👎'} ${isLike ? 'Liking' : 'Disliking'} article...`);
+    
+    await axios.post(`${BASE_URL}/article-likes`, {
+      userId: userData.userID,
+      articleId: article.articleID,
+      action: action
+    });
+    
+    console.log(`✅ You ${isLike ? 'liked' : 'disliked'} "${article.articleTitle}"`);
+    console.log("🎯 This helps improve your personalized recommendations!");
+    
+  } catch (err: any) {
+    console.error(`❌ Failed to ${isLike ? 'like' : 'dislike'} article:`, err.response?.data?.message || err.message);
+  }
+}
+
+async function handleReportSpecificArticle(article: any) {
+  console.log(`\n⚠️  Reporting "${article.articleTitle}"`);
+  
+  console.log("Confirm report:");
+  console.log("1. Yes, report this article");
+  console.log("2. Cancel");
+
+  const { confirm } = await inquirer.prompt({
+    type: 'input',
+    name: 'confirm',
+    message: 'Enter your choice (1-2):',
+    validate: (input) => ['1', '2'].includes(input) || 'Please enter 1 or 2.'
+  });
+
+  if (confirm === '2') {
+    console.log("Report cancelled.");
+    return;
+  }
+
+  try {
+    await axios.post(`${BASE_URL}/articles/${article.articleID}/report`, {
+      userId: userData.userID
+    });
+
+    console.log("✅ Article reported successfully.");
+    console.log("🔍 Our team will review this report. Thank you for helping maintain quality content.");
+
+  } catch (err: any) {
+    console.error("❌ Failed to report article:", err.response?.data?.message || err.message);
+  }
+}
+
 // Function to track user article views for personalization
 async function trackArticleView(articleId: number, userId: number) {
   try {
@@ -1292,6 +1693,92 @@ async function trackArticleView(articleId: number, userId: number) {
     });
   } catch (error: any) {
     // Silently fail - don't disrupt user experience for tracking
-    console.debug('Note: Article view tracking unavailable');
+  }
+}
+
+async function showArticleSelectionMenu(articles: any[], currentPage: number, totalPages: number, pageArticles: any[]): Promise<{type: string, articleId?: number, articleIndex?: number}> {
+  console.log("─".repeat(50));
+  console.log("What would you like to do?");
+  console.log("1. Read an article (enter 1-10)");
+  
+  if (currentPage < totalPages) {
+    console.log("2. Next page");
+  }
+  if (currentPage > 1) {
+    console.log("3. Previous page");
+  }
+  
+  console.log("4. More actions (save, like, report, etc.)");
+  console.log("5. Back to main menu");
+
+  const { action } = await inquirer.prompt({
+    type: 'input',
+    name: 'action',
+    message: 'Enter your choice (1-5):',
+    validate: (input) => {
+      const num = parseInt(input);
+      if (isNaN(num) || num < 1 || num > 5) {
+        return 'Please enter a number between 1 and 5.';
+      }
+      return true;
+    }
+  });
+
+  switch (action) {
+    case '1':
+      const { articleNum } = await inquirer.prompt({
+        type: 'input',
+        name: 'articleNum',
+        message: `Enter article number (1-${pageArticles.length}):`,
+        validate: (input) => {
+          const num = parseInt(input);
+          if (isNaN(num) || num < 1 || num > pageArticles.length) {
+            return `Please enter a number between 1 and ${pageArticles.length}.`;
+          }
+          return true;
+        }
+      });
+      const selectedArticle = pageArticles[parseInt(articleNum) - 1];
+      return { type: 'read', articleId: selectedArticle.articleID, articleIndex: parseInt(articleNum) - 1 };
+    case '2':
+      if (currentPage < totalPages) {
+        return { type: 'nextPage' };
+      }
+      return { type: 'invalid' };
+    case '3':
+      if (currentPage > 1) {
+        return { type: 'prevPage' };
+      }
+      return { type: 'invalid' };
+    case '4':
+      return { type: 'actions' };
+    case '5':
+      return { type: 'back' };
+    default:
+      return { type: 'invalid' };
+  }
+}
+
+async function handleReadArticleById(articleId: number, articles: any[]) {
+  const article = articles.find(a => a.articleID === articleId);
+  
+  if (!article) {
+    console.log("❌ Article not found.");
+    return;
+  }
+
+  try {
+    // Display the full article
+    await displayFullArticle(article);
+    
+    // Mark article as read and award points (simplified without verbose messages)
+    await markArticleAsRead(article.articleID, userData.userID);
+    
+    // Show post-reading options
+    await showPostReadingOptions(article);
+    
+  } catch (err: any) {
+    console.error("Error reading article:", err.response?.data?.message || err.message);
+    console.log("Please try again or contact support if the issue persists.\n");
   }
 }

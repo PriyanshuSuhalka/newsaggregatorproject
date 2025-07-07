@@ -32,7 +32,7 @@ export class NewsApiAdapter {
     return res.data.articles.map((article: any) => {
       const combinedText = `${article.title} ${article.content || ''}`.toLowerCase();
       const matchedCategory =
-        categoryNames.find((cat) => combinedText.includes(cat)) || 'Unknown';
+        categoryNames.find((cat) => combinedText.includes(cat)) || 'General';
 
       return {
         title: article.title || '',

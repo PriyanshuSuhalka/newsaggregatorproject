@@ -77,27 +77,79 @@ async function viewServerDetails() {
     const servers = res.data;
 
     console.log('\nList of external server details:');
+    console.log('=====================================');
+    
+    if (servers.length === 0) {
+      console.log('No external servers configured.');
+      return;
+    }
+
     servers.forEach((server: any, index: number) => {
-      console.log(
-        `${index + 1}. ${server.name} - ${server.key || server.APIKey || '<missing>'}`
-      );
+      const keyDisplay = server.key || '<not set>';
+      const statusIcon = server.status === 'Active' ? '🟢' : '🔴';
+      
+      console.log(`${index + 1}. ${server.name}`);
+      console.log(`   ${statusIcon} Status: ${server.status}`);
+      console.log(`   🔑 API Key: ${keyDisplay}`);
+      console.log(`   📅 Last Accessed: ${server.lastAccessed}`);
+      
+      if (index < servers.length - 1) {
+        console.log('   ---');
+      }
     });
+    
+    console.log('=====================================');
   } catch (error: any) {
     console.error('Error:', error.response?.data?.message || error.message);
   }
 }
 
 async function updateServer() {
-  const { id, key } = await inquirer.prompt([
-    { type: 'input', name: 'id', message: 'Enter external server ID:' },
-    { type: 'input', name: 'key', message: 'Enter the updated API key:' },
-  ]);
-
   try {
-    const res = await axios.put(`${BASE_URL}/external-servers/${id}`, { key });
-    console.log('API key updated successfully:', res.data);
+    // First, get the list of servers
+    const res = await axios.get(`${BASE_URL}/external-servers`);
+    const servers = res.data;
+
+    if (servers.length === 0) {
+      console.log('No external servers available to update.');
+      return;
+    }
+
+    console.log('\nAvailable servers:');
+    servers.forEach((server: any, index: number) => {
+      console.log(`${server.id}. ${server.name} - Key: ${server.key || '<not set>'}`);
+    });
+
+    const { id, key } = await inquirer.prompt([
+      { 
+        type: 'input', 
+        name: 'id', 
+        message: 'Enter external server ID:', 
+        validate: (input) => {
+          const serverId = parseInt(input);
+          const serverExists = servers.find((s: any) => s.id === serverId);
+          return serverExists ? true : 'Invalid server ID. Please choose from the list above.';
+        }
+      },
+      { 
+        type: 'input', 
+        name: 'key', 
+        message: 'Enter the new API key:',
+        validate: (input) => input.trim().length > 0 ? true : 'API key cannot be empty.'
+      },
+    ]);
+
+    const updateRes = await axios.put(`${BASE_URL}/external-servers/${id}`, { key });
+    console.log('✅ API key updated successfully:', updateRes.data);
+    
+    // Show updated server details
+    const selectedServer = servers.find((s: any) => s.id === parseInt(id));
+    if (selectedServer) {
+      console.log(`🔑 ${selectedServer.name} API key has been updated.`);
+    }
+    
   } catch (error: any) {
-    console.error('Update failed:', error.response?.data?.message || error.message);
+    console.error('❌ Update failed:', error.response?.data?.message || error.message);
   }
 }
 

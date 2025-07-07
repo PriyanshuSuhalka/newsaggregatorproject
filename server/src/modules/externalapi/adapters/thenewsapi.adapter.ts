@@ -38,14 +38,14 @@ export class TheNewsApiAdapter {
       const combinedText = `${article.title} ${content}`.toLowerCase();
       
       // Try to match against TheNewsApi's own categories first, then fall back to keyword matching
-      let matchedCategory = 'Unknown';
+      let matchedCategory = 'General';
       if (article.categories && article.categories.length > 0) {
         const apiCategory = article.categories[0].toLowerCase();
         matchedCategory = categoryNames.find((cat) => cat === apiCategory) || 
                           categoryNames.find((cat) => combinedText.includes(cat)) || 
-                          'Unknown';
+                          'General';
       } else {
-        matchedCategory = categoryNames.find((cat) => combinedText.includes(cat)) || 'Unknown';
+        matchedCategory = categoryNames.find((cat) => combinedText.includes(cat)) || 'General';
       }
 
       return {

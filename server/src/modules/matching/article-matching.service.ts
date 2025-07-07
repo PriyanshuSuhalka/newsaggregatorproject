@@ -148,7 +148,7 @@ export class ArticleMatchingService {
       2: 'business', 
       3: 'sports',
       4: 'technology',
-      6: 'unknown',
+      6: 'general',
       7: 'finance',
       8: 'stock',
       9: 'israel',

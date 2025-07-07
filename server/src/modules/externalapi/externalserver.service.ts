@@ -17,6 +17,7 @@ export class ExternalServerService {
     return servers.map((s, i) => ({
       id: s.externalAPIID,
       name: s.name,
+      key: s.key || '<not set>',
       status: s.APIStatus === 1 ? "Active" : "Not Active",
       lastAccessed: s.lastAccessed.toDateString(),
       display: `${i + 1}. ${s.name} - ${
