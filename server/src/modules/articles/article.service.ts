@@ -6,6 +6,7 @@ import { CreateArticleDto } from "./dto/create-article.dto";
 import { Category } from "@modules/categories/category.entity";
 import { ExternalAPI } from "@modules/externalapi/external-api.entity";
 import { User } from "@modules/users/user.entity";
+import { PersonalizationService } from "../personalization/personalization.service";
 
 export interface SearchOptions {
   keyword: string;
@@ -26,16 +27,34 @@ export class ArticleService {
     private externalRepo: Repository<ExternalAPI>,
 
     @InjectRepository(User)
-    private userRepo: Repository<User>
+    private userRepo: Repository<User>,
+
+    private personalizationService: PersonalizationService
   ) {}
 
-  findAll() {
-    return this.articleRepo.find({
+  async findAll(user: User) {
+    const articles = await this.articleRepo.find({
       where: { 
         isHidden: false,
         category: { isHidden: false }
       }
     });
+
+    const personalizedArticles = await Promise.all(
+      articles.map(async (article) => {
+        const score = await this.personalizationService.calculatePersonalizationScore(
+          article,
+          user
+        );
+        return { ...article, personalizationScore: score };
+      })
+    );
+
+    return personalizedArticles.sort((a, b) => b.personalizationScore - a.personalizationScore);
+  }
+
+  findOne(articleID: number) {
+    return this.articleRepo.findOneBy({ articleID });
   }
 
   async create(dto: CreateArticleDto) {

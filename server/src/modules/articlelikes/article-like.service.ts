@@ -98,32 +98,40 @@ export class ArticleLikeService {
     });
 
     if (!existingVote) {
-      throw new NotFoundException('No vote found for this article');
+      throw new NotFoundException('Vote not found');
     }
 
     await this.articleLikeRepository.remove(existingVote);
   }
 
-  async getArticleLikeStats(articleId: number, userId?: number): Promise<LikeStatsDto> {
-    const likes = await this.articleLikeRepository.count({
-      where: { article: { articleID: articleId }, likeType: LikeType.LIKE }
+  async getLikesForUser(userId: number): Promise<ArticleLike[]> {
+    return this.articleLikeRepository.find({
+      where: { user: { userID: userId }, likeType: LikeType.LIKE },
+      relations: ['article'],
     });
+  }
 
-    const dislikes = await this.articleLikeRepository.count({
-      where: { article: { articleID: articleId }, likeType: LikeType.DISLIKE }
-    });
+  async getArticleLikeStats(articleId: number, userId?: number): Promise<LikeStatsDto> {
+    const [likesCount, dislikesCount] = await Promise.all([
+      this.articleLikeRepository.count({
+        where: { article: { articleID: articleId }, likeType: LikeType.LIKE }
+      }),
+      this.articleLikeRepository.count({
+        where: { article: { articleID: articleId }, likeType: LikeType.DISLIKE }
+      })
+    ]);
 
     let userVote: LikeType | null = null;
     if (userId) {
-      const vote = await this.articleLikeRepository.findOne({
-        where: { user: { userID: userId }, article: { articleID: articleId } }
+      const userLike = await this.articleLikeRepository.findOne({
+        where: { article: { articleID: articleId }, user: { userID: userId } }
       });
-      userVote = vote?.likeType || null;
+      userVote = userLike ? userLike.likeType : null;
     }
 
     return {
-      likesCount: likes,
-      dislikesCount: dislikes,
+      likesCount,
+      dislikesCount,
       userVote
     };
   }
