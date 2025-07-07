@@ -211,7 +211,15 @@ describe('ArticleService', () => {
       const result = await service.getArticles();
 
       expect(result).toEqual(expectedArticles);
-      expect(mockQueryBuilder.andWhere).not.toHaveBeenCalled();
+      // Should still call andWhere for content filtering (hidden articles/categories)
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'article.isHidden = :isHidden', 
+        { isHidden: false }
+      );
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'category.isHidden = :categoryHidden', 
+        { categoryHidden: false }
+      );
     });
 
     it('should skip category filter when category is "All"', async () => {
@@ -324,8 +332,16 @@ describe('ArticleService', () => {
       expect(result).toEqual(expectedArticles);
       expect(mockArticleRepo.find).toHaveBeenCalledWith({
         where: [
-          { articleTitle: expect.any(Object) },
-          { articleContent: expect.any(Object) }
+          { 
+            articleTitle: expect.any(Object),
+            isHidden: false,
+            category: { isHidden: false }
+          },
+          { 
+            articleContent: expect.any(Object),
+            isHidden: false,
+            category: { isHidden: false }
+          }
         ],
         order: { publishDate: 'DESC' }
       });
@@ -342,6 +358,8 @@ describe('ArticleService', () => {
       expect(result).toEqual(expectedArticles);
       expect(mockArticleRepo.find).toHaveBeenCalledWith({
         where: {
+          isHidden: false,
+          category: { isHidden: false },
           publishDate: expect.any(Object) // Between condition
         },
         order: { publishDate: 'DESC' }
@@ -356,7 +374,10 @@ describe('ArticleService', () => {
 
       expect(result).toEqual(expectedArticles);
       expect(mockArticleRepo.find).toHaveBeenCalledWith({
-        where: {},
+        where: {
+          isHidden: false,
+          category: { isHidden: false }
+        },
         order: { publishDate: 'DESC' }
       });
     });

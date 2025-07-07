@@ -236,7 +236,7 @@ describe('PersonalizationService', () => {
         const score = await service.calculatePersonalizationScore(article, user);
 
         // Assert
-        expect(score).toBe(10); // Should get points for both title and content matches
+        expect(score).toBe(5); // Should not double count - only 5 points for one keyword
       });
     });
 

@@ -152,7 +152,10 @@ export class NotificationService {
    * Get all categories (for UI purposes)
    */
   async getAllCategories(): Promise<Category[]> {
-    return this.categoryRepo.find();
+    return this.categoryRepo.find({
+      where: { isHidden: false },
+      order: { categoryName: 'ASC' }
+    });
   }
 
   /**

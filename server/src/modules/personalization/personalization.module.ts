@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { PersonalizationService } from './personalization.service';
 import { ArticleModule } from '../articles/article.module';
 import { KeywordModule } from '../keywords/keyword.module';
@@ -9,7 +9,7 @@ import { NotificationConfigModule } from '../notificationconfig/notification-con
 
 @Module({
   imports: [
-    ArticleModule,
+    forwardRef(() => ArticleModule),
     KeywordModule,
     SavedArticleModule,
     UserHistoryModule,

@@ -29,6 +29,9 @@ import { ArticleModule } from "@modules/articles/article.module";
 import { CategoryModule } from "@modules/categories/category.module";
 import { SavedArticleModule } from "@modules/savedarticles/saved-article.module";
 import { UserHistoryModule } from "./userhistory/user-history.module";
+import { PersonalizationModule } from "./personalization/personalization.module";
+import { KeywordModule } from "./keywords/keyword.module";
+import { NotificationConfigModule } from "./notificationconfig/notification-config.module";
 
 @Module({
   imports: [
@@ -87,6 +90,9 @@ import { UserHistoryModule } from "./userhistory/user-history.module";
     SavedArticleModule,
     UserModule,
     UserHistoryModule,
+    PersonalizationModule,
+    KeywordModule,
+    NotificationConfigModule,
   ],
   controllers: [ExternalServerController],
   providers: [ExternalServerService],

@@ -62,6 +62,7 @@ export class ArticleService {
       categoryID: dto.categoryId,
     });
     if (!category) throw new Error("Category not found");
+    if (category.isHidden) throw new Error("Category is not available for selection");
 
     const api = await this.externalRepo.findOneBy({
       externalAPIID: dto.externalAPIId,

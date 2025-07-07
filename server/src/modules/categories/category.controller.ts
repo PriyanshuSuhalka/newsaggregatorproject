@@ -6,6 +6,11 @@ import { Category } from './category.entity';
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
+  @Get()
+  async getVisibleCategories(): Promise<Category[]> {
+    return this.categoryService.getVisibleCategories();
+  }
+
   @Post()
   async createCategory(@Body() category: { categoryName: string }): Promise<Category> {
     return this.categoryService.create(category.categoryName);
