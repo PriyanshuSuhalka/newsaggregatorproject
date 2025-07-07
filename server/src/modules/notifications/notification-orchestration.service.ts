@@ -103,11 +103,12 @@ export class NotificationOrchestrationService {
       try {
         const matchResult = await this.articleMatchingService.matchArticle(article, config);
         
-        if (matchResult.matched && matchResult.score > 0) {
+        // Simple boolean matching - if matched, notify regardless of score
+        if (matchResult.matched) {
           matchingUsers.push({ config, matchResult });
           
           this.logger.log(
-            `✅ User ${config.user.email} matched with score ${matchResult.score}: ${matchResult.reasons.join(', ')}`
+            `✅ User ${config.user.email} matched: ${matchResult.reasons.join(', ')}`
           );
         }
       } catch (error: unknown) {
@@ -265,20 +266,8 @@ export class NotificationOrchestrationService {
       ? article.articleTitle.substring(0, maxTitleLength) + '...'
       : article.articleTitle;
 
-    // Create a user-friendly message without match percentages or technical details
-    const categoryMatches = matchResult.matchedCategories;
-    const keywordMatches = matchResult.matchedKeywords;
-
-    let reason = '';
-    if (categoryMatches.length > 0 && keywordMatches.length > 0) {
-      reason = `(category & keyword match)`;
-    } else if (categoryMatches.length > 0) {
-      reason = `(category match)`;
-    } else if (keywordMatches.length > 0) {
-      reason = `(keyword match)`;
-    }
-
-    return `📰 ${truncatedTitle} ${reason}`.trim();
+    // Create a clean user-friendly message without match type indicators
+    return `📰 ${truncatedTitle}`;
   }
 
   /**
@@ -288,6 +277,7 @@ export class NotificationOrchestrationService {
     return this.configRepo
       .createQueryBuilder('config')
       .leftJoinAndSelect('config.user', 'user')
+      .where('user.role = :role', { role: 'user' })
       .getMany();
   }
 

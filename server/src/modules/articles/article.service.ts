@@ -37,7 +37,8 @@ export class ArticleService {
       where: { 
         isHidden: false,
         category: { isHidden: false }
-      }
+      },
+      relations: ['category', 'externalAPI']
     });
 
     const personalizedArticles = await Promise.all(

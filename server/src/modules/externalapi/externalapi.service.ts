@@ -101,13 +101,13 @@ export class ExternalApiService {
     let category = await this.categoryRepo.findOne({ where: { categoryName: name } });
 
     if (!category) {
-      category = await this.categoryRepo.findOne({ where: { categoryName: 'Unknown' } });
+      category = await this.categoryRepo.findOne({ where: { categoryName: 'General' } });
       if (!category) {
-        category = this.categoryRepo.create({ categoryName: 'Unknown' });
+        category = this.categoryRepo.create({ categoryName: 'General' });
         category = await this.categoryRepo.save(category);
-        this.logger.warn(`Fallback category 'Unknown' created.`);
+        this.logger.warn(`Fallback category 'General' created.`);
       }
-      this.logger.warn(`Category '${name}' not found. Using 'Unknown'.`);
+      this.logger.warn(`Category '${name}' not found. Using 'General'.`);
     }
 
     return category;

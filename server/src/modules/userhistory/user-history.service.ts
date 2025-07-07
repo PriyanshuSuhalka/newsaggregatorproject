@@ -17,6 +17,15 @@ export class UserHistoryService {
     return this.userHistoryRepository.save(historyEntry);
   }
 
+  async hasUserReadArticle(user: User, article: Article): Promise<UserHistory | null> {
+    return this.userHistoryRepository.findOne({
+      where: {
+        user: { userID: user.userID },
+        article: { articleID: article.articleID }
+      }
+    });
+  }
+
   async getHistoryForUser(user: User): Promise<UserHistory[]> {
     return this.userHistoryRepository.find({ where: { user } });
   }

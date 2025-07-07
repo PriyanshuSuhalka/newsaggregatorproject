@@ -1,6 +1,27 @@
 {
+  "name": "news-aggregator-full-entities",
+  "version": "1.0.0",
+  "description": "Full-stack News Aggregator with NestJS backend and TypeScript CLI client",
+  "private": true,
+  "scripts": {
+    "start": "npm run start:server",
+    "start:server": "cd server && npm run start:dev",
+    "start:client": "cd client && npm run start",
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "cd server && npm run build",
+    "build:client": "cd client && npm run build",
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "dev": "concurrently \"npm run start:server\" \"npm run start:client\"",
+    "test": "cd server && npm test"
+  },
   "dependencies": {
     "axios": "^1.10.0",
     "inquirer": "^12.6.3"
-  }
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": ["news", "aggregator", "nestjs", "typescript", "cli"],
+  "author": "",
+  "license": "ISC"
 }
